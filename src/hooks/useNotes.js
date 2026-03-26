@@ -8,70 +8,45 @@ import { useAuth } from "../context/AuthContext";
 
 export function useNotes() {
   const { user } = useAuth();
-  const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [notes, setNotes]   = useState([]);
+  const [loading, setLoad]  = useState(true);
+  const [error, setError]   = useState(null);
 
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
-    setLoading(true);
-    const q = query(
-      collection(db, "notes"),
-      where("uid", "==", user.uid),
-      orderBy("updatedAt", "desc")
+    if (!user) { setLoad(false); return; }
+    setLoad(true);
+    const q = query(collection(db, "notes"), where("uid","==",user.uid), orderBy("updatedAt","desc"));
+    return onSnapshot(q,
+      snap => { setNotes(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoad(false); setError(null); },
+      err  => { setError("Failed to load notes. Check Firestore rules."); setLoad(false); }
     );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setNotes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
-        setError(null);
-      },
-      (err) => {
-        console.error("Notes error:", err);
-        setError("Failed to load notes. Check Firestore rules.");
-        setLoading(false);
-      }
-    );
-    return unsub;
   }, [user]);
 
-  const addNote = async (content, color) => {
-    if (!content.trim()) return;
+  const addNote = async (htmlContent, textContent, color) => {
+    if (!textContent?.trim()) return;
     try {
       await addDoc(collection(db, "notes"), {
-        content: content.trim(),
-        color: color || "#2a2040",
+        htmlContent, textContent: textContent.trim(),
+        color: color || "#334155",
         uid: user.uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
-    } catch (e) {
-      setError("Failed to add note: " + e.message);
-      throw e;
-    }
+    } catch(e) { setError("Failed to add note: " + e.message); throw e; }
   };
 
-  const updateNote = async (id, content, color) => {
+  const updateNote = async (id, htmlContent, textContent, color) => {
     try {
       await updateDoc(doc(db, "notes", id), {
-        content: content.trim(),
-        color: color || "#2a2040",
+        htmlContent, textContent: textContent.trim(),
+        color: color || "#334155",
         updatedAt: serverTimestamp(),
       });
-    } catch (e) {
-      setError("Failed to update note: " + e.message);
-      throw e;
-    }
+    } catch(e) { setError("Failed to update note: " + e.message); throw e; }
   };
 
   const deleteNote = async (id) => {
-    try {
-      await deleteDoc(doc(db, "notes", id));
-    } catch (e) {
-      setError("Failed to delete note: " + e.message);
-      throw e;
-    }
+    try { await deleteDoc(doc(db, "notes", id)); }
+    catch(e) { setError("Failed to delete note: " + e.message); throw e; }
   };
 
   return { notes, loading, error, addNote, updateNote, deleteNote };
