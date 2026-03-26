@@ -1,12 +1,5 @@
-node_modules/
-dist/
-.env
-.env.local
+node_modules
+dist
 .firebase/
-firebase-debug.log
-firestore-debug.log
 *.log
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/

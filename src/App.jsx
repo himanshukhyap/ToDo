@@ -1,45 +1,62 @@
-// src/App.jsx
-import { Toaster } from 'react-hot-toast'
-import { AuthProvider, useAuth } from './context/AuthContext'
-import { ThemeProvider } from './context/ThemeContext'
-import Login from './components/Auth/Login'
-import AppLayout from './components/Layout/AppLayout'
-import Loading from './components/UI/Loading'
+import { useState } from "react";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import LoginPage from "./components/LoginPage";
+import Notes from "./components/Notes";
+import Tasks from "./components/Tasks";
+import { StickyNote, CheckSquare, LogOut } from "lucide-react";
 
-function AppContent() {
-  const { user, loading } = useAuth()
+function AppInner() {
+  const { user, loading, logout } = useAuth();
+  const [tab, setTab] = useState("tasks");
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f3f3f3] dark:bg-[#1f1f1f]">
-        <Loading message="Initializing TaskFlow..." />
+      <div className="splash">
+        <div className="splash-logo">NT</div>
+        <span className="spinner" />
       </div>
-    )
+    );
   }
 
-  return user ? <AppLayout user={user} /> : <Login />
+  if (!user) return <LoginPage />;
+
+  return (
+    <div className="app">
+      {/* Top bar */}
+      <header className="topbar">
+        <div className="topbar-brand">
+          <div className="brand-icon sm">NT</div>
+          <span className="brand-name">NoteTask</span>
+        </div>
+
+        <nav className="tab-nav">
+          <button className={`tab-btn ${tab === "tasks" ? "active" : ""}`} onClick={() => setTab("tasks")}>
+            <CheckSquare size={16} /> Tasks
+          </button>
+          <button className={`tab-btn ${tab === "notes" ? "active" : ""}`} onClick={() => setTab("notes")}>
+            <StickyNote size={16} /> Notes
+          </button>
+        </nav>
+
+        <div className="topbar-user">
+          <img src={user.photoURL} alt="" className="avatar" referrerPolicy="no-referrer" />
+          <span className="user-name">{user.displayName?.split(" ")[0]}</span>
+          <button className="icon-btn" onClick={logout} title="Sign out"><LogOut size={16} /></button>
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="main">
+        {tab === "tasks" ? <Tasks /> : <Notes />}
+      </main>
+    </div>
+  );
 }
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-        <Toaster
-          position="bottom-right"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              borderRadius: '12px',
-              fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
-              fontSize: '14px',
-              fontWeight: '500',
-            },
-            success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
-            error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
-          }}
-        />
-      </AuthProvider>
-    </ThemeProvider>
-  )
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  );
 }
