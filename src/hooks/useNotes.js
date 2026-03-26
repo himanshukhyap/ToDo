@@ -36,11 +36,12 @@ export function useNotes() {
     return unsub;
   }, [user]);
 
-  const addNote = async (content) => {
+  const addNote = async (content, color) => {
     if (!content.trim()) return;
     try {
       await addDoc(collection(db, "notes"), {
         content: content.trim(),
+        color: color || "#2a2040",
         uid: user.uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -51,10 +52,11 @@ export function useNotes() {
     }
   };
 
-  const updateNote = async (id, content) => {
+  const updateNote = async (id, content, color) => {
     try {
       await updateDoc(doc(db, "notes", id), {
         content: content.trim(),
+        color: color || "#2a2040",
         updatedAt: serverTimestamp(),
       });
     } catch (e) {

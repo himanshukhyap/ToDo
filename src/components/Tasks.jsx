@@ -2,40 +2,22 @@ import { useState, useRef, useEffect } from "react";
 import { useTasks } from "../hooks/useTasks";
 import { useCategories } from "../hooks/useCategories";
 import {
-  CheckSquare, Plus, Check, X, MoreVertical,
+  CheckSquare, Plus, Check, X,
   Pencil, Trash2, Copy, ChevronDown, ChevronUp,
-  Tag, Circle, CheckCircle2, Folder
+  Tag, Circle, CheckCircle2, Folder, Share2
 } from "lucide-react";
 import CategoryManager from "./CategoryManager";
 
-/* ── Three-dot dropdown ─────────────────────────────────── */
-function DotsMenu({ options }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
-  return (
-    <div className="dots-menu" ref={ref}>
-      <button className="icon-btn dots-btn" onClick={() => setOpen(!open)}>
-        <MoreVertical size={15} />
-      </button>
-      {open && (
-        <div className="dots-dropdown">
-          {options.map((opt) => (
-            <button key={opt.label} className={`dots-item ${opt.danger ? "danger" : ""}`}
-              onClick={() => { opt.action(); setOpen(false); }}>
-              {opt.icon}{opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+// Universal share helper
+async function shareContent(title, text) {
+  const shareData = { title, text };
+  if (navigator.share) {
+    try { await navigator.share(shareData); return "shared"; }
+    catch (e) { if (e.name !== "AbortError") throw e; return "cancelled"; }
+  } else {
+    await navigator.clipboard.writeText(text);
+    return "copied";
+  }
 }
 
 /* ── Subtask row ────────────────────────────────────────── */
@@ -85,6 +67,9 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
   const [editCat, setEditCat] = useState(task.categoryId || "");
   const [newSub, setNewSub] = useState("");
   const [addingSub, setAddingSub] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const cat = categories.find((c) => c.id === task.categoryId);
   const subtasks = task.subtasks || [];
@@ -103,26 +88,45 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
     setAddingSub(false);
   };
 
-  const handleCopy = () => {
-    const text = [task.title, ...subtasks.map((s) => `  • ${s.text}`)].join("\n");
-    navigator.clipboard.writeText(text);
+  const getShareText = () => {
+    const status = task.completed ? "✅" : "⬜";
+    const lines = [`${status} *${task.title}*`];
+    if (subtasks.length > 0) {
+      lines.push("");
+      subtasks.forEach((s) => lines.push(`  ${s.completed ? "✅" : "⬜"} ${s.text}`));
+    }
+    return lines.join("\n");
   };
 
-  const menuOptions = [
-    { label: "Edit", icon: <Pencil size={13} />, action: () => { setEditing(true); setExpanded(true); } },
-    { label: "Copy", icon: <Copy size={13} />, action: handleCopy },
-    { label: "Add Subtask", icon: <Plus size={13} />, action: () => { setAddingSub(true); setExpanded(true); } },
-    { label: "Delete", icon: <Trash2 size={13} />, action: () => onDelete(task.id), danger: true },
-  ];
+  const handleCopy = () => {
+    navigator.clipboard.writeText(getShareText());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    const result = await shareContent(task.title, getShareText());
+    if (result === "copied" || result === "shared") {
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    }
+  };
+
+  const handleDelete = () => {
+    if (confirmDel) { onDelete(task.id); }
+    else { setConfirmDel(true); setTimeout(() => setConfirmDel(false), 2500); }
+  };
 
   return (
     <div className={`task-card ${task.completed ? "task-done" : ""}`}>
       {/* Main row */}
       <div className="task-main-row">
+        {/* Checkbox */}
         <button className="task-check" onClick={() => onToggle(task.id, task.completed)}>
           {task.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
         </button>
 
+        {/* Title + meta */}
         <div className="task-body">
           {editing ? (
             <div className="task-edit-inline">
@@ -138,7 +142,7 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
               <button className="icon-btn green" onClick={handleEditSave}><Check size={13} /></button>
             </div>
           ) : (
-            <span className="task-title" onDoubleClick={() => setEditing(true)}>{task.title}</span>
+            <span className="task-title">{task.title}</span>
           )}
 
           <div className="task-meta-row">
@@ -153,36 +157,55 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
           </div>
         </div>
 
-        <div className="task-right">
-          <button className="expand-btn" onClick={() => setExpanded(!expanded)}>
-            {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+        {/* Inline action buttons — always visible */}
+        <div className="task-inline-actions">
+          {/* Add subtask */}
+          <button className="task-action-btn" title="Add subtask"
+            onClick={() => { setAddingSub(true); setExpanded(true); }}>
+            <Plus size={14} />
           </button>
-          <DotsMenu options={menuOptions} />
+          {/* Edit */}
+          <button className="task-action-btn" title="Edit"
+            onClick={() => { setEditing(true); setExpanded(false); }}>
+            <Pencil size={14} />
+          </button>
+          {/* Share */}
+          <button className="task-action-btn share-btn" onClick={handleShare}
+            title={navigator.share ? "Share via WhatsApp, SMS…" : "Copy to clipboard"}>
+            {shared ? <Check size={14} style={{ color: "var(--green)" }} /> : <Share2 size={14} />}
+          </button>
+          {/* Copy */}
+          <button className="task-action-btn" title="Copy text" onClick={handleCopy}>
+            {copied ? <Check size={14} style={{ color: "var(--green)" }} /> : <Copy size={14} />}
+          </button>
+          {/* Delete */}
+          <button className={`task-action-btn ${confirmDel ? "del-confirm" : ""}`}
+            title={confirmDel ? "Tap again to confirm delete" : "Delete"}
+            onClick={handleDelete}>
+            {confirmDel ? <Check size={14} /> : <Trash2 size={14} />}
+          </button>
+          {/* Expand */}
+          <button className="task-action-btn expand-toggle" title="Subtasks"
+            onClick={() => setExpanded(!expanded)}>
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
         </div>
       </div>
 
-      {/* Subtask progress */}
+      {/* Subtask progress bar */}
       {subtasks.length > 0 && (
         <div className="subtask-progress">
           <div className="sub-bar" style={{ width: `${(doneCount / subtasks.length) * 100}%` }} />
         </div>
       )}
 
-      {/* Expanded: subtasks */}
+      {/* Expanded subtasks */}
       {expanded && (
         <div className="subtask-area">
           {subtasks.map((sub) => (
-            <SubtaskRow
-              key={sub.id}
-              subtask={sub}
-              taskId={task.id}
-              task={task}
-              onToggle={onToggleSubtask}
-              onEdit={onEditSubtask}
-              onDelete={onDeleteSubtask}
-            />
+            <SubtaskRow key={sub.id} subtask={sub} taskId={task.id} task={task}
+              onToggle={onToggleSubtask} onEdit={onEditSubtask} onDelete={onDeleteSubtask} />
           ))}
-
           {addingSub ? (
             <div className="subtask-add-row">
               <input className="input-sm flex1" placeholder="Subtask…" value={newSub}

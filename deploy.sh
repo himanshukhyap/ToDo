@@ -1,48 +1,53 @@
 #!/bin/bash
-# ─────────────────────────────────────────────────
-# NoteTask — One-click Deploy Script
-# Run this once on your local machine
-# ─────────────────────────────────────────────────
-
+# ════════════════════════════════════════════
+#  NoteTask — Firebase Deploy Script
+#  Run once on your local machine
+# ════════════════════════════════════════════
 set -e
+
 echo ""
-echo "🚀 NoteTask — Firebase Deploy"
-echo "────────────────────────────────"
+echo "  ✦ NoteTask — Firebase Deploy"
+echo "  ══════════════════════════════"
 
-# 1. Install deps if needed
-if [ ! -d "node_modules" ]; then
-  echo "📦 Installing dependencies..."
-  npm install
-fi
+# ── Step 1: Install dependencies
+echo ""
+echo "  [1/5] Installing dependencies..."
+npm install
 
-# 2. Build
-echo "🔨 Building production bundle..."
+# ── Step 2: Build
+echo ""
+echo "  [2/5] Building production app..."
 npm run build
-echo "✅ Build complete!"
+echo "  ✅ Build complete → dist/"
 
-# 3. Install Firebase CLI if not present
+# ── Step 3: Install Firebase CLI
 if ! command -v firebase &> /dev/null; then
-  echo "📥 Installing Firebase CLI..."
+  echo ""
+  echo "  [3/5] Installing Firebase CLI..."
   npm install -g firebase-tools
+else
+  echo ""
+  echo "  [3/5] Firebase CLI already installed ✓"
 fi
 
-# 4. Login (opens browser)
+# ── Step 4: Login to Firebase
 echo ""
-echo "🔐 Logging into Firebase..."
+echo "  [4/5] Login to Firebase (browser will open)..."
 firebase login
 
-# 5. Deploy Firestore rules + indexes
+# ── Step 5: Deploy everything
 echo ""
-echo "📋 Deploying Firestore rules & indexes..."
+echo "  [5/5] Deploying to Firebase..."
+
+# Deploy Firestore rules + indexes
 firebase deploy --only firestore --project todo-ec064
 
-# 6. Deploy hosting
-echo ""
-echo "🌐 Deploying to Firebase Hosting..."
+# Deploy Hosting
 firebase deploy --only hosting --project todo-ec064
 
 echo ""
-echo "────────────────────────────────"
-echo "✅ DEPLOYED SUCCESSFULLY!"
-echo "🔗 Live URL: https://todo-ec064.web.app"
-echo "────────────────────────────────"
+echo "  ══════════════════════════════"
+echo "  ✅ DEPLOYED SUCCESSFULLY!"
+echo "  🔗 https://todo-ec064.web.app"
+echo "  ══════════════════════════════"
+echo ""
