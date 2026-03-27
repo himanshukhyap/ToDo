@@ -269,10 +269,13 @@ export default function Tasks() {
   const [showCatMgr, setShowCatMgr] = useState(false);
   const [filterCat,  setFilterCat]  = useState("");
   const [search,     setSearch]     = useState("");
-  const [mobileTab,  setMobileTab]  = useState("pending"); // pending | completed
+  const [mobileTab,  setMobileTab]  = useState("pending");
 
+  const isSearching = search.trim().length > 0;
+
+  // Search applies to BOTH pending and completed
   const filtered = tasks.filter(t => {
-    const ms = t.title?.toLowerCase().includes(search.toLowerCase());
+    const ms = !isSearching || t.title?.toLowerCase().includes(search.toLowerCase());
     const mc = !filterCat || t.categoryId === filterCat;
     return ms && mc;
   });
@@ -286,6 +289,11 @@ export default function Tasks() {
     onToggleSubtask: toggleSubtask, onDeleteSubtask: deleteSubtask,
   };
 
+  // When search is active, auto-switch mobile tab to whichever has results
+  const activeMobileTab = isSearching
+    ? (pending.length > 0 ? "pending" : "completed")
+    : mobileTab;
+
   return (
     <div className="tab-panel">
       {/* Header */}
@@ -295,13 +303,32 @@ export default function Tasks() {
           <span className="badge">{tasks.length}</span>
         </div>
         <div className="panel-header-right">
-          <input className="search-input" placeholder="Search tasks…" value={search}
-            onChange={e => setSearch(e.target.value)}/>
+          <div className="search-wrap">
+            <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input className="search-input" placeholder="Search tasks…" value={search}
+              onChange={e => setSearch(e.target.value)}/>
+            {search && (
+              <button className="search-clear" onClick={() => setSearch("")}>
+                <X size={13}/>
+              </button>
+            )}
+          </div>
           <button className="btn-ghost sm" onClick={() => setShowCatMgr(true)}>
             <Folder size={14}/> Categories
           </button>
         </div>
       </div>
+
+      {/* Search results info */}
+      {isSearching && (
+        <div className="search-info">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          {filtered.length === 0
+            ? `No tasks found for "${search}"`
+            : `${filtered.length} task${filtered.length !== 1 ? "s" : ""} found — ${pending.length} pending, ${completed.length} completed`
+          }
+        </div>
+      )}
 
       {error && <div className="error-banner">{error}</div>}
 
@@ -329,41 +356,52 @@ export default function Tasks() {
           <CheckSquare size={40} strokeWidth={1}/>
           <p>No tasks yet. Type above to add your first task.</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <p>No tasks match <strong>"{search || filterCat}"</strong>. Try a different search.</p>
+        </div>
       ) : (
         <>
-          {/* Progress bar */}
+          {/* Progress bar — based on all tasks, not filtered */}
           <div className="overall-progress">
-            <span>{completed.length}/{tasks.length} completed</span>
-            <div className="prog-bar"><div className="prog-fill" style={{width:`${(completed.length/tasks.length)*100}%`}}/></div>
+            <span>{tasks.filter(t=>t.completed).length}/{tasks.length} completed</span>
+            <div className="prog-bar">
+              <div className="prog-fill" style={{width:`${(tasks.filter(t=>t.completed).length/tasks.length)*100}%`}}/>
+            </div>
           </div>
 
-          {/* ── Desktop: collapsible sections ── */}
+          {/* ── Desktop: both sections auto-open when searching ── */}
           <div className="tasks-desktop">
-            {/* Pending section */}
             <DesktopSection title="Pending" icon={<Clock size={14}/>} tasks={pending}
               categories={categories} handlers={handlers} onManageCat={() => setShowCatMgr(true)}
-              emptyMsg="Nothing pending 🎉" defaultOpen={true}/>
-            {/* Completed section */}
+              emptyMsg={isSearching ? `No pending tasks match "${search}"` : "Nothing pending 🎉"}
+              defaultOpen={true} forceOpen={isSearching}/>
             <DesktopSection title="Completed" icon={<CheckCircle2 size={14}/>} tasks={completed}
               categories={categories} handlers={handlers} onManageCat={() => setShowCatMgr(true)}
-              emptyMsg="No completed tasks." defaultOpen={false}/>
+              emptyMsg={isSearching ? `No completed tasks match "${search}"` : "No completed tasks."}
+              defaultOpen={false} forceOpen={isSearching && completed.length > 0}/>
           </div>
 
-          {/* ── Mobile: tab switch ── */}
+          {/* ── Mobile: tabs ── */}
           <div className="tasks-mobile">
             <div className="mobile-task-tabs">
-              <button className={`mobile-tab ${mobileTab==="pending"?"active":""}`} onClick={() => setMobileTab("pending")}>
+              <button className={`mobile-tab ${(isSearching ? activeMobileTab : mobileTab)==="pending"?"active":""}`}
+                onClick={() => setMobileTab("pending")}>
                 <Clock size={14}/> Pending <span className="badge sm">{pending.length}</span>
               </button>
-              <button className={`mobile-tab ${mobileTab==="completed"?"active":""}`} onClick={() => setMobileTab("completed")}>
+              <button className={`mobile-tab ${(isSearching ? activeMobileTab : mobileTab)==="completed"?"active":""}`}
+                onClick={() => setMobileTab("completed")}>
                 <CheckCircle2 size={14}/> Done <span className="badge sm">{completed.length}</span>
               </button>
             </div>
             <div className="mobile-task-body">
               <TaskList
-                tasks={mobileTab==="pending" ? pending : completed}
+                tasks={(isSearching ? activeMobileTab : mobileTab)==="pending" ? pending : completed}
                 categories={categories}
-                emptyMsg={mobileTab==="pending" ? "Nothing pending 🎉" : "No completed tasks."}
+                emptyMsg={(isSearching ? activeMobileTab : mobileTab)==="pending"
+                  ? (isSearching ? `No pending tasks match "${search}"` : "Nothing pending 🎉")
+                  : (isSearching ? `No completed tasks match "${search}"` : "No completed tasks.")}
                 handlers={handlers}
                 onManageCat={() => setShowCatMgr(true)}
               />
@@ -378,15 +416,16 @@ export default function Tasks() {
 }
 
 /* ── Desktop collapsible section ────────────────────────── */
-function DesktopSection({ title, icon, tasks, categories, handlers, onManageCat, emptyMsg, defaultOpen }) {
+function DesktopSection({ title, icon, tasks, categories, handlers, onManageCat, emptyMsg, defaultOpen, forceOpen }) {
   const [open, setOpen] = useState(defaultOpen);
+  const isOpen = forceOpen || open;
   return (
     <div className="task-section">
       <button className="section-toggle" onClick={() => setOpen(!open)}>
         <span className="section-toggle-left">{icon}<span>{title}</span><span className="badge sm">{tasks.length}</span></span>
-        {open ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+        {isOpen ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
       </button>
-      {open && (
+      {isOpen && (
         <div className="section-body">
           <TaskList tasks={tasks} categories={categories} emptyMsg={emptyMsg}
             handlers={handlers} onManageCat={onManageCat}/>
