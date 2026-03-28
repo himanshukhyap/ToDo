@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
-  onSnapshot, query, where, orderBy, serverTimestamp, arrayUnion, arrayRemove,
+  onSnapshot, query, where, orderBy, serverTimestamp, arrayUnion,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -12,9 +12,9 @@ function genId() {
 
 export function useTasks() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState([]);
+  const [tasks,   setTasks]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error,   setError]   = useState(null);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -24,20 +24,19 @@ export function useTasks() {
       where("uid", "==", user.uid),
       orderBy("createdAt", "desc")
     );
-    const unsub = onSnapshot(
+    return onSnapshot(
       q,
-      (snap) => {
-        setTasks(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      snap => {
+        setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoading(false);
         setError(null);
       },
-      (err) => {
-        console.error("Tasks error:", err);
-        setError("Failed to load tasks. Check Firestore rules & indexes.");
+      err => {
+        console.error("[Tasks] onSnapshot error:", err.code, err.message);
+        setError(`Failed to load tasks: ${err.message}`);
         setLoading(false);
       }
     );
-    return unsub;
   }, [user]);
 
   const addTask = async (title, categoryId) => {
@@ -53,7 +52,8 @@ export function useTasks() {
         updatedAt: serverTimestamp(),
       });
     } catch (e) {
-      setError("Failed to add task: " + e.message);
+      console.error("[Tasks] addDoc error:", e.code, e.message);
+      setError(`Add failed: ${e.message}`);
       throw e;
     }
   };
@@ -65,16 +65,20 @@ export function useTasks() {
         updatedAt: serverTimestamp(),
       });
     } catch (e) {
-      setError("Failed to update task: " + e.message);
+      console.error("[Tasks] updateDoc error:", e.code, e.message);
+      setError(`Update failed: ${e.message}`);
       throw e;
     }
   };
 
   const deleteTask = async (id) => {
+    console.log("[Tasks] Deleting task:", id);
     try {
       await deleteDoc(doc(db, "tasks", id));
+      console.log("[Tasks] Deleted successfully:", id);
     } catch (e) {
-      setError("Failed to delete task: " + e.message);
+      console.error("[Tasks] deleteDoc error:", e.code, e.message);
+      setError(`Delete failed: ${e.message} — Check Firestore rules are deployed.`);
       throw e;
     }
   };
@@ -82,42 +86,61 @@ export function useTasks() {
   const toggleTask = (id, current) =>
     updateTask(id, { completed: !current });
 
-  // Subtask operations — stored as array inside task doc
   const addSubtask = async (taskId, text) => {
     if (!text.trim()) return;
     const subtask = { id: genId(), text: text.trim(), completed: false };
-    await updateDoc(doc(db, "tasks", taskId), {
-      subtasks: arrayUnion(subtask),
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, "tasks", taskId), {
+        subtasks: arrayUnion(subtask),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("[Tasks] addSubtask error:", e.code, e.message);
+      throw e;
+    }
   };
 
   const updateSubtask = async (taskId, task, subtaskId, newText) => {
-    const updated = (task.subtasks || []).map((s) =>
+    const updated = (task.subtasks || []).map(s =>
       s.id === subtaskId ? { ...s, text: newText.trim() } : s
     );
-    await updateDoc(doc(db, "tasks", taskId), {
-      subtasks: updated,
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, "tasks", taskId), {
+        subtasks: updated,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("[Tasks] updateSubtask error:", e.code, e.message);
+      throw e;
+    }
   };
 
   const toggleSubtask = async (taskId, task, subtaskId) => {
-    const updated = (task.subtasks || []).map((s) =>
+    const updated = (task.subtasks || []).map(s =>
       s.id === subtaskId ? { ...s, completed: !s.completed } : s
     );
-    await updateDoc(doc(db, "tasks", taskId), {
-      subtasks: updated,
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, "tasks", taskId), {
+        subtasks: updated,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("[Tasks] toggleSubtask error:", e.code, e.message);
+      throw e;
+    }
   };
 
   const deleteSubtask = async (taskId, task, subtaskId) => {
-    const updated = (task.subtasks || []).filter((s) => s.id !== subtaskId);
-    await updateDoc(doc(db, "tasks", taskId), {
-      subtasks: updated,
-      updatedAt: serverTimestamp(),
-    });
+    const updated = (task.subtasks || []).filter(s => s.id !== subtaskId);
+    try {
+      await updateDoc(doc(db, "tasks", taskId), {
+        subtasks: updated,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("[Tasks] deleteSubtask error:", e.code, e.message);
+      throw e;
+    }
   };
 
   return {

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTasks } from "../hooks/useTasks";
 import { useCategories } from "../hooks/useCategories";
+import { confirmDelete, errorAlert } from "../utils/swal";
+import { TasksSkeleton } from "./Loader";
 import {
   CheckSquare, Plus, Check, X,
   Pencil, Trash2, Copy, ChevronDown, ChevronUp,
@@ -94,7 +96,6 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
   const [addingSub,  setAddingSub]  = useState(false);
   const [copied,     setCopied]     = useState(false);
   const [shared,     setShared]     = useState(false);
-  const [confirmDel, setConfirmDel] = useState(false);
 
   const cat      = categories.find(c => c.id === task.categoryId);
   const subtasks = task.subtasks || [];
@@ -122,9 +123,14 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
     const r = await shareContent(task.title, getShareText());
     if (r==="copied"||r==="shared") { setShared(true); setTimeout(()=>setShared(false),2000); }
   };
-  const handleDelete = () => {
-    if (confirmDel) onDelete(task.id);
-    else { setConfirmDel(true); setTimeout(()=>setConfirmDel(false),2500); }
+  const handleDelete = async () => {
+    const ok = await confirmDelete(`task "${task.title}"`);
+    if (!ok) return;
+    try {
+      await onDelete(task.id);
+    } catch (e) {
+      errorAlert(`Could not delete task: ${e.message}\n\nMake sure Firestore rules are deployed.`);
+    }
   };
 
   return (
@@ -180,8 +186,8 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
           <button className="task-action-btn" title="Copy" onClick={handleCopy}>
             {copied ? <Check size={14} style={{color:"var(--green)"}}/> : <Copy size={14}/>}
           </button>
-          <button className={`task-action-btn ${confirmDel?"del-confirm":""}`} title="Delete" onClick={handleDelete}>
-            {confirmDel ? <Check size={14}/> : <Trash2 size={14}/>}
+          <button className="task-action-btn" title="Delete" onClick={handleDelete}>
+            <Trash2 size={14}/>
           </button>
           <button className="task-action-btn expand-toggle" onClick={() => setExpanded(!expanded)}>
             {expanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
@@ -221,15 +227,18 @@ function TaskCard({ task, categories, onToggle, onUpdate, onDelete,
 }
 
 /* ── Inline Add Task row ────────────────────────────────── */
-function AddTaskRow({ categories, onAdd, onManageCat }) {
+function AddTaskRow({ categories, onAdd, onManageCat, defaultCatId }) {
   const [title,   setTitle]   = useState("");
-  const [catId,   setCatId]   = useState("");
+  const [catId,   setCatId]   = useState(defaultCatId || "");
   const [focused, setFocused] = useState(false);
+
+  // Keep in sync if external cat changes
+  useEffect(() => { setCatId(defaultCatId || ""); }, [defaultCatId]);
 
   const handleAdd = () => {
     if (!title.trim()) return;
     onAdd(title, catId || null);
-    setTitle(""); setCatId(""); setFocused(false);
+    setTitle(""); setCatId(defaultCatId || ""); setFocused(false);
   };
 
   return (
@@ -262,21 +271,20 @@ function TaskList({ tasks, categories, emptyMsg, handlers, onManageCat }) {
 }
 
 /* ── Main Tasks panel ───────────────────────────────────── */
-export default function Tasks() {
+export default function Tasks({ filterCat: externalCat }) {
   const { tasks, loading, error, addTask, updateTask, deleteTask, toggleTask,
     addSubtask, updateSubtask, toggleSubtask, deleteSubtask } = useTasks();
   const { categories } = useCategories();
   const [showCatMgr, setShowCatMgr] = useState(false);
-  const [filterCat,  setFilterCat]  = useState("");
   const [search,     setSearch]     = useState("");
   const [mobileTab,  setMobileTab]  = useState("pending");
 
   const isSearching = search.trim().length > 0;
 
-  // Search applies to BOTH pending and completed
+  // Use external cat from sidebar if set, otherwise no filter
   const filtered = tasks.filter(t => {
     const ms = !isSearching || t.title?.toLowerCase().includes(search.toLowerCase());
-    const mc = !filterCat || t.categoryId === filterCat;
+    const mc = !externalCat || t.categoryId === externalCat;
     return ms && mc;
   });
 
@@ -289,17 +297,22 @@ export default function Tasks() {
     onToggleSubtask: toggleSubtask, onDeleteSubtask: deleteSubtask,
   };
 
-  // When search is active, auto-switch mobile tab to whichever has results
   const activeMobileTab = isSearching
     ? (pending.length > 0 ? "pending" : "completed")
     : mobileTab;
+
+  const activeCatName = externalCat
+    ? categories.find(c => c.id === externalCat)?.name
+    : null;
 
   return (
     <div className="tab-panel">
       {/* Header */}
       <div className="panel-header">
         <div className="panel-title">
-          <CheckSquare size={18}/><span>Tasks</span>
+          <CheckSquare size={18}/>
+          <span>Tasks</span>
+          {activeCatName && <span className="panel-cat-chip">{activeCatName}</span>}
           <span className="badge">{tasks.length}</span>
         </div>
         <div className="panel-header-right">
@@ -307,11 +320,7 @@ export default function Tasks() {
             <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input className="search-input" placeholder="Search tasks…" value={search}
               onChange={e => setSearch(e.target.value)}/>
-            {search && (
-              <button className="search-clear" onClick={() => setSearch("")}>
-                <X size={13}/>
-              </button>
-            )}
+            {search && <button className="search-clear" onClick={() => setSearch("")}><X size={13}/></button>}
           </div>
           <button className="btn-ghost sm" onClick={() => setShowCatMgr(true)}>
             <Folder size={14}/> Categories
@@ -319,97 +328,78 @@ export default function Tasks() {
         </div>
       </div>
 
-      {/* Search results info */}
       {isSearching && (
         <div className="search-info">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           {filtered.length === 0
             ? `No tasks found for "${search}"`
-            : `${filtered.length} task${filtered.length !== 1 ? "s" : ""} found — ${pending.length} pending, ${completed.length} completed`
-          }
+            : `${filtered.length} task${filtered.length!==1?"s":""} — ${pending.length} pending, ${completed.length} completed`}
         </div>
       )}
 
       {error && <div className="error-banner">{error}</div>}
 
-      <AddTaskRow categories={categories} onAdd={addTask} onManageCat={() => setShowCatMgr(true)}/>
+      <AddTaskRow categories={categories} onAdd={addTask} defaultCatId={externalCat} onManageCat={() => setShowCatMgr(true)}/>
 
-      {/* Category filter chips */}
-      {categories.length > 0 && (
+      {categories.length > 0 && !externalCat && (
         <div className="cat-filter-bar">
-          <button className={`cat-filter-btn ${!filterCat?"active":""}`} onClick={() => setFilterCat("")}>All</button>
           {categories.map(c => (
-            <button key={c.id}
-              className={`cat-filter-btn ${filterCat===c.id?"active":""}`}
-              style={filterCat===c.id ? {background:c.color+"22",color:c.color,borderColor:c.color+"66"} : {}}
-              onClick={() => setFilterCat(filterCat===c.id?"":c.id)}>
+            <span key={c.id} className="cat-filter-tag" style={{background:c.color+"18",color:c.color,border:`1px solid ${c.color}33`}}>
               <span className="cat-dot-xs" style={{background:c.color}}/>{c.name}
-            </button>
+            </span>
           ))}
         </div>
       )}
 
       {loading ? (
-        <div className="loading-state"><span className="spinner"/></div>
+        <TasksSkeleton/>
       ) : tasks.length === 0 ? (
-        <div className="empty-state">
-          <CheckSquare size={40} strokeWidth={1}/>
-          <p>No tasks yet. Type above to add your first task.</p>
-        </div>
+        <div className="empty-state"><CheckSquare size={40} strokeWidth={1}/><p>No tasks yet. Type above to add your first task.</p></div>
       ) : filtered.length === 0 ? (
         <div className="empty-state">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <p>No tasks match <strong>"{search || filterCat}"</strong>. Try a different search.</p>
+          <p>No tasks match <strong>"{search || activeCatName}"</strong>.</p>
         </div>
       ) : (
         <>
-          {/* Progress bar — based on all tasks, not filtered */}
           <div className="overall-progress">
             <span>{tasks.filter(t=>t.completed).length}/{tasks.length} completed</span>
-            <div className="prog-bar">
-              <div className="prog-fill" style={{width:`${(tasks.filter(t=>t.completed).length/tasks.length)*100}%`}}/>
-            </div>
+            <div className="prog-bar"><div className="prog-fill" style={{width:`${(tasks.filter(t=>t.completed).length/tasks.length)*100}%`}}/></div>
           </div>
 
-          {/* ── Desktop: both sections auto-open when searching ── */}
           <div className="tasks-desktop">
             <DesktopSection title="Pending" icon={<Clock size={14}/>} tasks={pending}
               categories={categories} handlers={handlers} onManageCat={() => setShowCatMgr(true)}
-              emptyMsg={isSearching ? `No pending tasks match "${search}"` : "Nothing pending 🎉"}
+              emptyMsg={isSearching?`No pending tasks match "${search}"`:"Nothing pending 🎉"}
               defaultOpen={true} forceOpen={isSearching}/>
             <DesktopSection title="Completed" icon={<CheckCircle2 size={14}/>} tasks={completed}
               categories={categories} handlers={handlers} onManageCat={() => setShowCatMgr(true)}
-              emptyMsg={isSearching ? `No completed tasks match "${search}"` : "No completed tasks."}
+              emptyMsg={isSearching?`No completed tasks match "${search}"`:"No completed tasks."}
               defaultOpen={false} forceOpen={isSearching && completed.length > 0}/>
           </div>
 
-          {/* ── Mobile: tabs ── */}
           <div className="tasks-mobile">
             <div className="mobile-task-tabs">
-              <button className={`mobile-tab ${(isSearching ? activeMobileTab : mobileTab)==="pending"?"active":""}`}
-                onClick={() => setMobileTab("pending")}>
+              <button className={`mobile-tab ${(isSearching?activeMobileTab:mobileTab)==="pending"?"active":""}`} onClick={()=>setMobileTab("pending")}>
                 <Clock size={14}/> Pending <span className="badge sm">{pending.length}</span>
               </button>
-              <button className={`mobile-tab ${(isSearching ? activeMobileTab : mobileTab)==="completed"?"active":""}`}
-                onClick={() => setMobileTab("completed")}>
+              <button className={`mobile-tab ${(isSearching?activeMobileTab:mobileTab)==="completed"?"active":""}`} onClick={()=>setMobileTab("completed")}>
                 <CheckCircle2 size={14}/> Done <span className="badge sm">{completed.length}</span>
               </button>
             </div>
             <div className="mobile-task-body">
               <TaskList
-                tasks={(isSearching ? activeMobileTab : mobileTab)==="pending" ? pending : completed}
+                tasks={(isSearching?activeMobileTab:mobileTab)==="pending"?pending:completed}
                 categories={categories}
-                emptyMsg={(isSearching ? activeMobileTab : mobileTab)==="pending"
-                  ? (isSearching ? `No pending tasks match "${search}"` : "Nothing pending 🎉")
-                  : (isSearching ? `No completed tasks match "${search}"` : "No completed tasks.")}
-                handlers={handlers}
-                onManageCat={() => setShowCatMgr(true)}
+                emptyMsg={(isSearching?activeMobileTab:mobileTab)==="pending"
+                  ?(isSearching?`No pending tasks match "${search}"`:"Nothing pending 🎉")
+                  :(isSearching?`No completed tasks match "${search}"`:"No completed tasks.")}
+                handlers={handlers} onManageCat={()=>setShowCatMgr(true)}
               />
             </div>
           </div>
         </>
       )}
-
       {showCatMgr && <CategoryManager onClose={() => setShowCatMgr(false)}/>}
     </div>
   );

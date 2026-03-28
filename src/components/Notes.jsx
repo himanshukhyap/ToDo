@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useNotes } from "../hooks/useNotes";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
+import { confirmDelete, errorAlert } from "../utils/swal";
+import { NotesSkeleton } from "./Loader";
 import {
   Plus, Pencil, Trash2, Copy, Check, X, FileText, Share2,
-  Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Strikethrough,
+  Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
+  Strikethrough, ChevronDown, ChevronUp, Eye,
 } from "lucide-react";
 
 async function shareContent(title, text) {
@@ -37,7 +40,7 @@ function getColorCfg(bg) {
   return NOTE_COLORS.find(c => c.bg === bg) || NOTE_COLORS[10];
 }
 
-/* ── Toolbar ────────────────────────────────────────────── */
+/* ── Toolbar ─────────────────────────────────────────── */
 function EditorToolbar({ editor, textColor }) {
   if (!editor) return null;
   const btn = (active, action, icon, title) => (
@@ -45,24 +48,22 @@ function EditorToolbar({ editor, textColor }) {
       className={`tt-btn ${active ? "tt-active" : ""}`}
       style={{ color: textColor }}
       onMouseDown={e => { e.preventDefault(); action(); }}
-      title={title}>
-      {icon}
-    </button>
+      title={title}>{icon}</button>
   );
   return (
     <div className="tt-toolbar" style={{ borderColor: textColor + "20" }}>
-      {btn(editor.isActive("bold"),         () => editor.chain().focus().toggleBold().run(),         <Bold size={13}/>,          "Bold")}
-      {btn(editor.isActive("italic"),       () => editor.chain().focus().toggleItalic().run(),       <Italic size={13}/>,        "Italic")}
-      {btn(editor.isActive("underline"),    () => editor.chain().focus().toggleUnderline().run(),    <UnderlineIcon size={13}/>, "Underline")}
-      {btn(editor.isActive("strike"),       () => editor.chain().focus().toggleStrike().run(),       <Strikethrough size={13}/>,"Strike")}
+      {btn(editor.isActive("bold"),        () => editor.chain().focus().toggleBold().run(),         <Bold size={13}/>,          "Bold")}
+      {btn(editor.isActive("italic"),      () => editor.chain().focus().toggleItalic().run(),       <Italic size={13}/>,        "Italic")}
+      {btn(editor.isActive("underline"),   () => editor.chain().focus().toggleUnderline().run(),   <UnderlineIcon size={13}/>, "Underline")}
+      {btn(editor.isActive("strike"),      () => editor.chain().focus().toggleStrike().run(),      <Strikethrough size={13}/>,"Strike")}
       <div className="tt-divider" style={{ background: textColor + "20" }}/>
-      {btn(editor.isActive("bulletList"),   () => editor.chain().focus().toggleBulletList().run(),   <List size={13}/>,          "Bullet list")}
-      {btn(editor.isActive("orderedList"),  () => editor.chain().focus().toggleOrderedList().run(),  <ListOrdered size={13}/>,   "Numbered list")}
+      {btn(editor.isActive("bulletList"),  () => editor.chain().focus().toggleBulletList().run(),  <List size={13}/>,          "Bullet")}
+      {btn(editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run(), <ListOrdered size={13}/>,   "Numbered")}
     </div>
   );
 }
 
-/* ── Note Editor (inline card) ──────────────────────────── */
+/* ── Note Editor ─────────────────────────────────────── */
 function NoteEditor({ note, onSave, onCancel }) {
   const [color, setColor] = useState(note?.color || NOTE_COLORS[0].bg);
   const cfg = getColorCfg(color);
@@ -71,7 +72,7 @@ function NoteEditor({ note, onSave, onCancel }) {
     extensions: [
       StarterKit,
       Underline,
-      Placeholder.configure({ placeholder: "Write your note… (rich text supported)" }),
+      Placeholder.configure({ placeholder: "Write your note…" }),
     ],
     content: note?.htmlContent || "",
     autofocus: true,
@@ -106,12 +107,46 @@ function NoteEditor({ note, onSave, onCancel }) {
   );
 }
 
-/* ── Note Card ──────────────────────────────────────────── */
-function NoteCard({ note, onEdit, onDelete }) {
-  const [copied, setCopied]   = useState(false);
-  const [shared, setShared]   = useState(false);
-  const [confirmDel, setConf] = useState(false);
+/* ── Note Full Modal (Read More view) ────────────────── */
+function NoteModal({ note, onClose, onEdit }) {
   const cfg = getColorCfg(note.color);
+  return (
+    <div className="note-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="note-modal" style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>
+        <div className="note-modal-header">
+          <span className="note-modal-date">
+            {note.updatedAt?.toDate
+              ? note.updatedAt.toDate().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})
+              : ""}
+          </span>
+          <div style={{display:"flex",gap:"4px"}}>
+            <button className="note-icon-btn" onClick={() => { onEdit(note); onClose(); }} title="Edit">
+              <Pencil size={15}/>
+            </button>
+            <button className="note-icon-btn" onClick={onClose} title="Close"><X size={15}/></button>
+          </div>
+        </div>
+        <div className="note-modal-body tt-view"
+          dangerouslySetInnerHTML={{ __html: note.htmlContent || `<p>${note.content||""}</p>` }}/>
+      </div>
+    </div>
+  );
+}
+
+/* ── Note Card ───────────────────────────────────────── */
+const PREVIEW_HEIGHT = 160;
+
+function NoteCard({ note, onEdit, onDelete }) {
+  const [copied, setCopied]     = useState(false);
+  const [shared, setShared]     = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [overflow, setOverflow] = useState(false);
+  const cfg = getColorCfg(note.color);
+
+  // Callback ref — measures scrollHeight after render
+  const contentRef = useCallback((el) => {
+    if (el) setOverflow(el.scrollHeight > PREVIEW_HEIGHT + 8);
+  }, [note.id]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(note.textContent || note.content || "");
@@ -121,35 +156,57 @@ function NoteCard({ note, onEdit, onDelete }) {
     const r = await shareContent("Note", note.textContent || note.content || "");
     if (r === "copied" || r === "shared") { setShared(true); setTimeout(() => setShared(false), 2000); }
   };
-  const handleDelete = () => {
-    if (confirmDel) onDelete(note.id);
-    else { setConf(true); setTimeout(() => setConf(false), 2500); }
+  const handleDelete = async () => {
+    const ok = await confirmDelete("this note");
+    if (!ok) return;
+    try {
+      await onDelete(note.id);
+    } catch (e) {
+      errorAlert(`Could not delete note: ${e.message}\n\nMake sure Firestore rules are deployed.`);
+    }
   };
+
   const ts = note.updatedAt?.toDate
     ? note.updatedAt.toDate().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "";
 
   return (
-    <div className="note-card" style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>
+    <div className={`note-card ${expanded ? "note-expanded" : ""}`}
+      style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>
       <div className="note-fold"/>
-      {/* Rich HTML content */}
-      <div className="note-body tt-view"
-        dangerouslySetInnerHTML={{ __html: note.htmlContent || `<p>${note.content || ""}</p>` }}
+
+      {/* Content with overflow detection */}
+      <div
+        ref={contentRef}
+        className="note-body tt-view"
+        style={{ maxHeight: expanded ? "none" : `${PREVIEW_HEIGHT}px`, overflow: "hidden", position: "relative" }}
+        dangerouslySetInnerHTML={{ __html: note.htmlContent || `<p>${note.content||""}</p>` }}
       />
+
+      {/* Gradient fade when truncated */}
+      {overflow && !expanded && <div className="note-fade"/>}
+
+      {/* Read more / collapse */}
+      {overflow && (
+        <button className="note-read-more" onClick={() => setExpanded(!expanded)}
+          style={{ color: cfg.text }}>
+          {expanded ? <><ChevronUp size={12}/> Show less</> : <><Eye size={12}/> Read more</>}
+        </button>
+      )}
+
       <div className="note-footer">
         <span className="note-ts">{ts}</span>
         <div className="note-actions">
           <button className="note-icon-btn" onClick={handleShare} title="Share">
             {shared ? <Check size={14}/> : <Share2 size={14}/>}
           </button>
-          <button className="note-icon-btn" onClick={handleCopy} title="Copy text">
+          <button className="note-icon-btn" onClick={handleCopy} title="Copy">
             {copied ? <Check size={14}/> : <Copy size={14}/>}
           </button>
           <button className="note-icon-btn" onClick={() => onEdit(note)} title="Edit">
             <Pencil size={14}/>
           </button>
-          <button className={`note-icon-btn ${confirmDel ? "del-confirm" : ""}`}
-            onClick={handleDelete} title={confirmDel ? "Tap again to confirm" : "Delete"}>
-            {confirmDel ? <Check size={14}/> : <Trash2 size={14}/>}
+          <button className="note-icon-btn" onClick={handleDelete} title="Delete">
+            <Trash2 size={14}/>
           </button>
         </div>
       </div>
@@ -157,7 +214,7 @@ function NoteCard({ note, onEdit, onDelete }) {
   );
 }
 
-/* ── Main Notes panel ───────────────────────────────────── */
+/* ── Main Notes panel ────────────────────────────────── */
 export default function Notes() {
   const { notes, loading, error, addNote, updateNote, deleteNote } = useNotes();
   const [adding, setAdding]       = useState(false);
@@ -201,7 +258,7 @@ export default function Notes() {
       {adding && <NoteEditor onSave={handleSave} onCancel={() => setAdding(false)}/>}
 
       {loading ? (
-        <div className="loading-state"><span className="spinner"/></div>
+        <NotesSkeleton/>
       ) : filtered.length === 0 && !adding ? (
         <div className="empty-state">
           <FileText size={40} strokeWidth={1}/>

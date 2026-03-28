@@ -1,17 +1,53 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper — authenticated user owns the document
+    function isAuth()  { return request.auth != null; }
+    function isOwner() { return isAuth() && request.auth.uid == resource.data.uid; }
+    function isNew()   { return isAuth() && request.auth.uid == request.resource.data.uid; }
+
     match /notes/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read:   if isOwner();
+      allow create: if isNew();
+      allow update: if isOwner();
+      allow delete: if isOwner();
     }
+
     match /tasks/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read:   if isOwner();
+      allow create: if isNew();
+      allow update: if isOwner();
+      allow delete: if isOwner();
     }
+
     match /categories/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read:   if isOwner();
+      allow create: if isNew();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /notebooks/{id} {
+      allow read:   if isOwner();
+      allow create: if isNew();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /nb_sections/{id} {
+      allow read:   if isOwner();
+      allow create: if isNew();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /nb_pages/{id} {
+      allow read:   if isOwner();
+      allow create: if isNew();
+      allow update: if isOwner();
+      allow delete: if isOwner();
     }
   }
 }
