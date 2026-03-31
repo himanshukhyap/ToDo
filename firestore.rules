@@ -3,49 +3,66 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper — authenticated user owns the document
-    function isAuth()  { return request.auth != null; }
-    function isOwner() { return isAuth() && request.auth.uid == resource.data.uid; }
-    function isNew()   { return isAuth() && request.auth.uid == request.resource.data.uid; }
+    // Authenticated user check
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // User owns the existing document (for read/update/delete)
+    function isOwner() {
+      return isAuth() && request.auth.uid == resource.data.uid;
+    }
+
+    // User is creating a document they will own (for create)
+    function isCreatingOwn() {
+      return isAuth() && request.auth.uid == request.resource.data.uid;
+    }
 
     match /notes/{id} {
       allow read:   if isOwner();
-      allow create: if isNew();
+      allow create: if isCreatingOwn();
       allow update: if isOwner();
       allow delete: if isOwner();
     }
 
     match /tasks/{id} {
       allow read:   if isOwner();
-      allow create: if isNew();
+      allow create: if isCreatingOwn();
       allow update: if isOwner();
       allow delete: if isOwner();
     }
 
     match /categories/{id} {
       allow read:   if isOwner();
-      allow create: if isNew();
+      allow create: if isCreatingOwn();
       allow update: if isOwner();
       allow delete: if isOwner();
     }
 
     match /notebooks/{id} {
       allow read:   if isOwner();
-      allow create: if isNew();
+      allow create: if isCreatingOwn();
       allow update: if isOwner();
       allow delete: if isOwner();
     }
 
     match /nb_sections/{id} {
       allow read:   if isOwner();
-      allow create: if isNew();
+      allow create: if isCreatingOwn();
       allow update: if isOwner();
       allow delete: if isOwner();
     }
 
     match /nb_pages/{id} {
       allow read:   if isOwner();
-      allow create: if isNew();
+      allow create: if isCreatingOwn();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /nb_trash/{id} {
+      allow read:   if isOwner();
+      allow create: if isCreatingOwn();
       allow update: if isOwner();
       allow delete: if isOwner();
     }

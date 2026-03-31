@@ -1,12 +1,22 @@
+/**
+ * useNotebook hooks
+ *
+ * Collection fields:
+ *   notebooks   → notebookName, uid, createdAt
+ *   nb_sections → sectionName, notebookId, uid, createdAt
+ *   nb_pages    → pageName, htmlContent, textContent, sectionId, notebookId, uid, createdAt, updatedAt
+ */
 import { useState, useEffect } from "react";
 import {
-  collection, addDoc, updateDoc, deleteDoc, doc,
-  onSnapshot, query, where, orderBy, serverTimestamp,
+  collection, addDoc, updateDoc, getDocs,
+  doc, query, where, orderBy, onSnapshot, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 
-/* ── Notebooks ─────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   NOTEBOOKS
+   ════════════════════════════════════════════════════ */
 export function useNotebooks() {
   const { user } = useAuth();
   const [notebooks, setNotebooks] = useState([]);
@@ -19,37 +29,64 @@ export function useNotebooks() {
       where("uid", "==", user.uid),
       orderBy("createdAt", "asc")
     );
-    return onSnapshot(
-      q,
-      snap => { setNotebooks(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      err  => { console.error("[Notebooks] error:", err.code, err.message); setLoading(false); }
+    return onSnapshot(q,
+      snap => {
+        setNotebooks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      err => { console.error("[useNotebooks]", err.code, err.message); setLoading(false); }
     );
   }, [user]);
 
-  const add = (name, color) =>
-    addDoc(collection(db, "notebooks"), {
-      name: name.trim(), color: color || "#6366f1",
-      uid: user.uid, createdAt: serverTimestamp(),
+  /**
+   * Create notebook + default section + default page
+   * Returns { notebookId, sectionId, pageId }
+   */
+  const createNotebook = async (notebookName, color) => {
+    // 1. Create notebook
+    const nbRef = await addDoc(collection(db, "notebooks"), {
+      notebookName: notebookName.trim(),
+      color:        color || "#6366f1",
+      uid:          user.uid,
+      createdAt:    serverTimestamp(),
     });
 
-  const update = (id, name, color) =>
-    updateDoc(doc(db, "notebooks", id), { name: name.trim(), color });
+    // 2. Create default section
+    const secRef = await addDoc(collection(db, "nb_sections"), {
+      sectionName: "Section 1",
+      color:       color || "#6366f1",
+      notebookId:  nbRef.id,
+      uid:         user.uid,
+      createdAt:   serverTimestamp(),
+    });
 
-  const remove = async (id) => {
-    console.log("[Notebooks] Deleting:", id);
-    try {
-      await deleteDoc(doc(db, "notebooks", id));
-      console.log("[Notebooks] Deleted:", id);
-    } catch (e) {
-      console.error("[Notebooks] deleteDoc error:", e.code, e.message);
-      throw e;
-    }
+    // 3. Create default page
+    const pageRef = await addDoc(collection(db, "nb_pages"), {
+      pageName:    "Page 1",
+      htmlContent: "",
+      textContent: "",
+      sectionId:   secRef.id,
+      notebookId:  nbRef.id,
+      uid:         user.uid,
+      createdAt:   serverTimestamp(),
+      updatedAt:   serverTimestamp(),
+    });
+
+    return { notebookId: nbRef.id, sectionId: secRef.id, pageId: pageRef.id };
   };
 
-  return { notebooks, loading, add, update, remove };
+  const renameNotebook = (id, notebookName, color) =>
+    updateDoc(doc(db, "notebooks", id), {
+      notebookName: notebookName.trim(),
+      color,
+    });
+
+  return { notebooks, loading, createNotebook, renameNotebook };
 }
 
-/* ── Sections ──────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   SECTIONS
+   ════════════════════════════════════════════════════ */
 export function useSections(notebookId) {
   const { user } = useAuth();
   const [sections, setSections] = useState([]);
@@ -63,37 +100,53 @@ export function useSections(notebookId) {
       where("notebookId", "==", notebookId),
       orderBy("createdAt", "asc")
     );
-    return onSnapshot(
-      q,
-      snap => { setSections(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      err  => { console.error("[Sections] error:", err.code, err.message); setLoading(false); }
+    return onSnapshot(q,
+      snap => {
+        setSections(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      err => { console.error("[useSections]", err.code, err.message); setLoading(false); }
     );
   }, [user, notebookId]);
 
-  const add = (name, color) =>
-    addDoc(collection(db, "nb_sections"), {
-      name: name.trim(), color: color || "#6366f1",
-      notebookId, uid: user.uid, createdAt: serverTimestamp(),
+  /**
+   * Create section + default page inside it
+   */
+  const createSection = async (sectionName, color) => {
+    const secRef = await addDoc(collection(db, "nb_sections"), {
+      sectionName: sectionName.trim(),
+      color:       color || "#6366f1",
+      notebookId,
+      uid:         user.uid,
+      createdAt:   serverTimestamp(),
     });
 
-  const update = (id, name, color) =>
-    updateDoc(doc(db, "nb_sections", id), { name: name.trim(), color });
+    await addDoc(collection(db, "nb_pages"), {
+      pageName:    "Page 1",
+      htmlContent: "",
+      textContent: "",
+      sectionId:   secRef.id,
+      notebookId,
+      uid:         user.uid,
+      createdAt:   serverTimestamp(),
+      updatedAt:   serverTimestamp(),
+    });
 
-  const remove = async (id) => {
-    console.log("[Sections] Deleting:", id);
-    try {
-      await deleteDoc(doc(db, "nb_sections", id));
-      console.log("[Sections] Deleted:", id);
-    } catch (e) {
-      console.error("[Sections] deleteDoc error:", e.code, e.message);
-      throw e;
-    }
+    return { sectionId: secRef.id };
   };
 
-  return { sections, loading, add, update, remove };
+  const renameSection = (id, sectionName, color) =>
+    updateDoc(doc(db, "nb_sections", id), {
+      sectionName: sectionName.trim(),
+      color,
+    });
+
+  return { sections, loading, createSection, renameSection };
 }
 
-/* ── Pages ─────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════
+   PAGES
+   ════════════════════════════════════════════════════ */
 export function usePages(sectionId) {
   const { user } = useAuth();
   const [pages,   setPages]   = useState([]);
@@ -107,44 +160,40 @@ export function usePages(sectionId) {
       where("sectionId", "==", sectionId),
       orderBy("createdAt", "asc")
     );
-    return onSnapshot(
-      q,
-      snap => { setPages(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      err  => { console.error("[Pages] error:", err.code, err.message); setLoading(false); }
+    return onSnapshot(q,
+      snap => {
+        setPages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      err => { console.error("[usePages]", err.code, err.message); setLoading(false); }
     );
   }, [user, sectionId]);
 
-  const add = (title, sectionId, notebookId) =>
+  const createPage = (sectionId, notebookId, uid) =>
     addDoc(collection(db, "nb_pages"), {
-      title: title || "Untitled Page",
-      htmlContent: "", textContent: "",
-      sectionId, notebookId, uid: user.uid,
-      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      pageName:    "Untitled Page",
+      htmlContent: "",
+      textContent: "",
+      sectionId,
+      notebookId,
+      uid,
+      createdAt:   serverTimestamp(),
+      updatedAt:   serverTimestamp(),
     });
 
-  const update = (id, htmlContent, textContent, title) =>
+  const savePage = (id, htmlContent, textContent, pageName) =>
     updateDoc(doc(db, "nb_pages", id), {
-      htmlContent, textContent,
-      title: title || "Untitled Page",
+      htmlContent,
+      textContent,
+      pageName:    pageName || "Untitled Page",
+      updatedAt:   serverTimestamp(),
+    });
+
+  const renamePage = (id, pageName) =>
+    updateDoc(doc(db, "nb_pages", id), {
+      pageName:  pageName || "Untitled Page",
       updatedAt: serverTimestamp(),
     });
 
-  const updateTitle = (id, title) =>
-    updateDoc(doc(db, "nb_pages", id), {
-      title: title || "Untitled Page",
-      updatedAt: serverTimestamp(),
-    });
-
-  const remove = async (id) => {
-    console.log("[Pages] Deleting:", id);
-    try {
-      await deleteDoc(doc(db, "nb_pages", id));
-      console.log("[Pages] Deleted:", id);
-    } catch (e) {
-      console.error("[Pages] deleteDoc error:", e.code, e.message);
-      throw e;
-    }
-  };
-
-  return { pages, loading, add, update, updateTitle, remove };
+  return { pages, loading, createPage, savePage, renamePage };
 }
