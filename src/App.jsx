@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { OfflineProvider } from "./context/OfflineContext";
+import { OfflineIndicator } from "./components/OfflineIndicator";
 import LoginPage from "./components/LoginPage";
 import Sidebar from "./components/Sidebar";
 import Tasks from "./components/Tasks";
@@ -64,7 +66,10 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppInner/>
+        <OfflineProvider>
+          <OfflineIndicator/>
+          <AppInner/>
+        </OfflineProvider>
       </AuthProvider>
     </ThemeProvider>
   );

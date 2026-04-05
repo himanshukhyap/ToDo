@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
@@ -13,7 +13,19 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// ⚠️  NO offline persistence — ye delete/update errors hide karta tha
 export const db      = getFirestore(app);
 export const auth    = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Enable offline persistence for Firestore
+enableIndexedDbPersistence(db)
+  .then(() => {
+    console.log('[Firebase] Offline persistence enabled');
+  })
+  .catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('[Firebase] Offline persistence failed - multiple tabs open?');
+    } else if (err.code === 'unimplemented') {
+      console.warn('[Firebase] Offline persistence not supported');
+    }
+  });

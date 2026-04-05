@@ -1,0 +1,19 @@
+{
+  "name": "NoteTask - Offline Todo & Notes",
+  "short_name": "NoteTask",
+  "description": "Todo and Notes app with offline support",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#334155",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "96x96",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["productivity"]
+}
