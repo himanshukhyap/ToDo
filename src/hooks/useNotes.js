@@ -26,46 +26,66 @@ export function useNotes() {
 
   useEffect(() => {
     if (!user) { setLoad(false); return; }
+    
     setLoad(true);
+    let isMounted = true;
+
+    // Load offline data first so they're visible immediately
+    const loadOfflineData = async () => {
+      try {
+        const offlineNotes = await getNotesOffline(user.uid);
+        if (isMounted && offlineNotes.length > 0) {
+          console.log("[Notes] Loaded offline data:", offlineNotes.length);
+          setNotes(offlineNotes);
+        }
+      } catch (err) {
+        console.error("[Notes] Failed to load offline data:", err);
+      }
+    };
+
+    // Load offline data immediately
+    loadOfflineData();
+
+    // Then try to sync with Firebase
     const q = query(
       collection(db, "notes"),
       where("uid", "==", user.uid),
       orderBy("updatedAt", "desc")
     );
-    return onSnapshot(
+    
+    const unsubscribe = onSnapshot(
       q,
       snap => {
-        setNotes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setLoad(false);
-        setError(null);
+        if (isMounted) {
+          const notesData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setNotes(notesData);
+          setLoad(false);
+          setError(null);
+        }
       },
       err => {
         console.error("[Notes] onSnapshot error:", err.code, err.message);
-        // If offline or error, load from offline storage
-        if (!isOnline() || err.code === 'unavailable') {
-          console.log("[Notes] Loading from offline storage");
-          getNotesOffline(user.uid)
-            .then(offlineNotes => {
-              setNotes(offlineNotes);
-              setError("Offline - showing local data");
-              setLoad(false);
-            })
-            .catch(offlineErr => {
-              console.error("[Notes] Offline load error:", offlineErr);
-              setError(`Failed to load notes: ${err.message}`);
-              setLoad(false);
-            });
-        } else {
-          setError(`Failed to load notes: ${err.message}`);
+        if (isMounted) {
           setLoad(false);
+          if (!isOnline()) {
+            setError(null); // Don't show error when offline
+          } else {
+            setError(`Connection error: ${err.message}`);
+          }
         }
       }
     );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [user]);
 
   const addNote = async (htmlContent, textContent, color) => {
     if (!textContent?.trim()) return;
     
+    const id = 'local_' + genId();
     const noteData = {
       htmlContent,
       textContent: textContent.trim(),
@@ -76,31 +96,34 @@ export function useNotes() {
     };
     
     try {
+      // Save locally first
+      await saveNoteOffline({ id, ...noteData });
+      
+      // Update UI immediately
+      setNotes(prev => [{ id, ...noteData }, ...prev]);
+      
+      // Try to sync to Firebase
       if (isOnline()) {
-        // Add to Firebase
-        await addDoc(collection(db, "notes"), {
-          ...noteData,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        try {
+          const fbRef = await addDoc(collection(db, "notes"), {
+            ...noteData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          console.log("[Notes] Synced to Firebase:", fbRef.id);
+        } catch (fbErr) {
+          // Failed to sync - queue for later
+          await queueOperation(user.uid, 'add_note', noteData);
+          console.log("[Notes] Firebase failed, queued:", fbErr.message);
+        }
       } else {
-        // Offline: save locally and queue for sync
-        const id = 'local_' + genId();
-        await saveNoteOffline({ id, ...noteData });
+        // Offline - queue for sync
         await queueOperation(user.uid, 'add_note', noteData);
         console.log("[Notes] Added offline, queued for sync");
       }
     } catch (e) {
-      console.error("[Notes] addNote error:", e.code, e.message);
-      // Fallback: still try to save offline
-      try {
-        const id = 'local_' + genId();
-        await saveNoteOffline({ id, ...noteData });
-        await queueOperation(user.uid, 'add_note', noteData);
-      } catch (offlineErr) {
-        console.error("[Notes] Offline save failed:", offlineErr);
-      }
-      setError(`Add failed: ${e.message}`);
+      console.error("[Notes] addNote error:", e);
+      setError(`Failed to save: ${e.message}`);
       throw e;
     }
   };
@@ -114,28 +137,35 @@ export function useNotes() {
     };
     
     try {
+      // Update locally first
+      await updateNoteOffline(id, updateData);
+      
+      // Update UI immediately
+      setNotes(prev => prev.map(n => 
+        n.id === id ? { ...n, ...updateData } : n
+      ));
+
+      // Try to sync to Firebase
       if (isOnline()) {
-        // Update Firebase
-        await updateDoc(doc(db, "notes", id), {
-          ...updateData,
-          updatedAt: serverTimestamp(),
-        });
+        try {
+          await updateDoc(doc(db, "notes", id), {
+            ...updateData,
+            updatedAt: serverTimestamp(),
+          });
+          console.log("[Notes] Updated on Firebase:", id);
+        } catch (fbErr) {
+          // Failed to sync - queue for later
+          await queueOperation(user.uid, 'update_note', { id, ...updateData });
+          console.log("[Notes] Firebase failed, queued:", fbErr.message);
+        }
       } else {
-        // Offline: update locally and queue for sync
-        await updateNoteOffline(id, updateData);
+        // Offline - queue for sync
         await queueOperation(user.uid, 'update_note', { id, ...updateData });
         console.log("[Notes] Updated offline, queued for sync");
       }
     } catch (e) {
-      console.error("[Notes] updateNote error:", e.code, e.message);
-      // Fallback: try offline
-      try {
-        await updateNoteOffline(id, updateData);
-        await queueOperation(user.uid, 'update_note', { id, ...updateData });
-      } catch (offlineErr) {
-        console.error("[Notes] Offline update failed:", offlineErr);
-      }
-      setError(`Update failed: ${e.message}`);
+      console.error("[Notes] updateNote error:", e);
+      setError(`Failed to update: ${e.message}`);
       throw e;
     }
   };
@@ -143,24 +173,30 @@ export function useNotes() {
   const deleteNote = async (id) => {
     console.log("[Notes] Deleting note:", id);
     try {
+      // Delete locally first
+      await deleteNoteOffline(id);
+      
+      // Update UI immediately
+      setNotes(prev => prev.filter(n => n.id !== id));
+
+      // Try to sync deletion to Firebase
       if (isOnline()) {
-        await deleteDoc(doc(db, "notes", id));
+        try {
+          await deleteDoc(doc(db, "notes", id));
+          console.log("[Notes] Deleted on Firebase:", id);
+        } catch (fbErr) {
+          // Failed to sync - queue for later
+          await queueOperation(user.uid, 'delete_note', { id });
+          console.log("[Notes] Firebase failed, queued:", fbErr.message);
+        }
       } else {
-        await deleteNoteOffline(id);
+        // Offline - queue for sync
         await queueOperation(user.uid, 'delete_note', { id });
         console.log("[Notes] Deleted offline, queued for sync");
       }
-      console.log("[Notes] Deleted successfully:", id);
     } catch (e) {
-      console.error("[Notes] deleteNote error:", e.code, e.message);
-      // Fallback: try offline delete
-      try {
-        await deleteNoteOffline(id);
-        await queueOperation(user.uid, 'delete_note', { id });
-      } catch (offlineErr) {
-        console.error("[Notes] Offline delete failed:", offlineErr);
-      }
-      setError(`Delete failed: ${e.message} — Check Firestore rules are deployed.`);
+      console.error("[Notes] deleteNote error:", e);
+      setError(`Failed to delete: ${e.message}`);
       throw e;
     }
   };

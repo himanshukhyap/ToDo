@@ -28,48 +28,64 @@ export function useTasks() {
     if (!user) { setLoading(false); return; }
     
     setLoading(true);
-    
+    let isMounted = true;
+
+    // Load offline data first so they're visible immediately
+    const loadOfflineData = async () => {
+      try {
+        const offlineTasks = await getTasksOffline(user.uid);
+        if (isMounted && offlineTasks.length > 0) {
+          console.log("[Tasks] Loaded offline data:", offlineTasks.length);
+          setTasks(offlineTasks);
+        }
+      } catch (err) {
+        console.error("[Tasks] Failed to load offline data:", err);
+      }
+    };
+
+    // Load offline data immediately
+    loadOfflineData();
+
+    // Then try to sync with Firebase
     const q = query(
       collection(db, "tasks"),
       where("uid", "==", user.uid),
       orderBy("createdAt", "desc")
     );
     
-    return onSnapshot(
+    const unsubscribe = onSnapshot(
       q,
       snap => {
-        const tasksData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setTasks(tasksData);
-        setLoading(false);
-        setError(null);
+        if (isMounted) {
+          const tasksData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setTasks(tasksData);
+          setLoading(false);
+          setError(null);
+        }
       },
       err => {
         console.error("[Tasks] onSnapshot error:", err.code, err.message);
-        // If offline or error, load from offline storage
-        if (!isOnline() || err.code === 'unavailable') {
-          console.log("[Tasks] Loading from offline storage");
-          getTasksOffline(user.uid)
-            .then(offlineTasks => {
-              setTasks(offlineTasks);
-              setError("Offline - showing local data");
-              setLoading(false);
-            })
-            .catch(offlineErr => {
-              console.error("[Tasks] Offline load error:", offlineErr);
-              setError(`Failed to load tasks: ${err.message}`);
-              setLoading(false);
-            });
-        } else {
-          setError(`Failed to load tasks: ${err.message}`);
+        if (isMounted) {
           setLoading(false);
+          if (!isOnline()) {
+            setError(null); // Don't show error when offline
+          } else {
+            setError(`Connection error: ${err.message}`);
+          }
         }
       }
     );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [user]);
 
   const addTask = async (title, categoryId) => {
     if (!title.trim()) return;
     
+    const id = 'local_' + genId();
     const taskData = {
       title: title.trim(),
       categoryId: categoryId || null,
@@ -81,31 +97,34 @@ export function useTasks() {
     };
     
     try {
+      // Save locally first
+      await saveTaskOffline({ id, ...taskData });
+      
+      // Update UI immediately
+      setTasks(prev => [{ id, ...taskData }, ...prev]);
+      
+      // Try to sync to Firebase
       if (isOnline()) {
-        // Add to Firebase
-        await addDoc(collection(db, "tasks"), {
-          ...taskData,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        try {
+          const fbRef = await addDoc(collection(db, "tasks"), {
+            ...taskData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          console.log("[Tasks] Synced to Firebase:", fbRef.id);
+        } catch (fbErr) {
+          // Failed to sync - queue for later
+          await queueOperation(user.uid, 'add_task', taskData);
+          console.log("[Tasks] Firebase failed, queued:", fbErr.message);
+        }
       } else {
-        // Offline: save locally and queue for sync
-        const id = 'local_' + genId();
-        await saveTaskOffline({ id, ...taskData });
+        // Offline - queue for sync
         await queueOperation(user.uid, 'add_task', taskData);
         console.log("[Tasks] Added offline, queued for sync");
       }
     } catch (e) {
-      console.error("[Tasks] addTask error:", e.code, e.message);
-      // Fallback: still try to save offline
-      try {
-        const id = 'local_' + genId();
-        await saveTaskOffline({ id, ...taskData });
-        await queueOperation(user.uid, 'add_task', taskData);
-      } catch (offlineErr) {
-        console.error("[Tasks] Offline save failed:", offlineErr);
-      }
-      setError(`Add failed: ${e.message}`);
+      console.error("[Tasks] addTask error:", e);
+      setError(`Failed to save: ${e.message}`);
       throw e;
     }
   };
@@ -117,28 +136,35 @@ export function useTasks() {
         updatedAt: new Date(),
       };
 
+      // Update locally first
+      await updateTaskOffline(id, updatedData);
+      
+      // Update UI immediately
+      setTasks(prev => prev.map(t => 
+        t.id === id ? { ...t, ...updatedData } : t
+      ));
+
+      // Try to sync to Firebase
       if (isOnline()) {
-        // Update Firebase
-        await updateDoc(doc(db, "tasks", id), {
-          ...updatedData,
-          updatedAt: serverTimestamp(),
-        });
+        try {
+          await updateDoc(doc(db, "tasks", id), {
+            ...updatedData,
+            updatedAt: serverTimestamp(),
+          });
+          console.log("[Tasks] Updated on Firebase:", id);
+        } catch (fbErr) {
+          // Failed to sync - queue for later
+          await queueOperation(user.uid, 'update_task', { id, ...updatedData });
+          console.log("[Tasks] Firebase failed, queued:", fbErr.message);
+        }
       } else {
-        // Offline: update locally and queue for sync
-        await updateTaskOffline(id, updatedData);
+        // Offline - queue for sync
         await queueOperation(user.uid, 'update_task', { id, ...updatedData });
         console.log("[Tasks] Updated offline, queued for sync");
       }
     } catch (e) {
-      console.error("[Tasks] updateTask error:", e.code, e.message);
-      // Fallback: try offline
-      try {
-        await updateTaskOffline(id, updates);
-        await queueOperation(user.uid, 'update_task', { id, ...updates });
-      } catch (offlineErr) {
-        console.error("[Tasks] Offline update failed:", offlineErr);
-      }
-      setError(`Update failed: ${e.message}`);
+      console.error("[Tasks] updateTask error:", e);
+      setError(`Failed to update: ${e.message}`);
       throw e;
     }
   };
@@ -146,24 +172,30 @@ export function useTasks() {
   const deleteTask = async (id) => {
     console.log("[Tasks] Deleting task:", id);
     try {
+      // Delete locally first
+      await deleteTaskOffline(id);
+      
+      // Update UI immediately
+      setTasks(prev => prev.filter(t => t.id !== id));
+
+      // Try to sync deletion to Firebase
       if (isOnline()) {
-        await deleteDoc(doc(db, "tasks", id));
+        try {
+          await deleteDoc(doc(db, "tasks", id));
+          console.log("[Tasks] Deleted on Firebase:", id);
+        } catch (fbErr) {
+          // Failed to sync - queue for later
+          await queueOperation(user.uid, 'delete_task', { id });
+          console.log("[Tasks] Firebase failed, queued:", fbErr.message);
+        }
       } else {
-        await deleteTaskOffline(id);
+        // Offline - queue for sync
         await queueOperation(user.uid, 'delete_task', { id });
         console.log("[Tasks] Deleted offline, queued for sync");
       }
-      console.log("[Tasks] Deleted successfully:", id);
     } catch (e) {
-      console.error("[Tasks] deleteTask error:", e.code, e.message);
-      // Fallback: try offline delete
-      try {
-        await deleteTaskOffline(id);
-        await queueOperation(user.uid, 'delete_task', { id });
-      } catch (offlineErr) {
-        console.error("[Tasks] Offline delete failed:", offlineErr);
-      }
-      setError(`Delete failed: ${e.message}`);
+      console.error("[Tasks] deleteTask error:", e);
+      setError(`Failed to delete: ${e.message}`);
       throw e;
     }
   };
