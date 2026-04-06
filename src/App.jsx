@@ -7,7 +7,51 @@ import Tasks from "./components/Tasks";
 import Notes from "./components/Notes";
 import Notebook from "./components/Notebook";
 import OfflineBanner from "./components/OfflineBanner";
+import { CheckSquare, StickyNote, BookOpen, Menu, X } from "lucide-react";
 
+/* ── Mobile Bottom Nav ───────────────────────────────── */
+function MobileBottomNav({ active, setActive }) {
+  const tabs = [
+    { id: "tasks",    icon: <CheckSquare size={22}/>, label: "Tasks"    },
+    { id: "notes",    icon: <StickyNote  size={22}/>, label: "Notes"    },
+    { id: "notebook", icon: <BookOpen    size={22}/>, label: "Notebook" },
+  ];
+  return (
+    <nav className="mobile-bottom-nav">
+      {tabs.map(t => (
+        <button key={t.id}
+          className={`mbn-tab ${active === t.id ? "active" : ""}`}
+          onClick={() => setActive(t.id)}>
+          {t.icon}
+          <span>{t.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/* ── Mobile Top Header ───────────────────────────────── */
+function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
+  const titles = {
+    tasks:    activeCat ? activeCat.name || "Tasks" : "Tasks",
+    notes:    "Notes",
+    notebook: activeNotebook?.notebookName || "Notebook",
+  };
+  return (
+    <header className="mobile-top-header">
+      <button className="mth-menu-btn" onClick={onMenuOpen} aria-label="Open menu">
+        <Menu size={22}/>
+      </button>
+      <div className="mth-brand">
+        <span className="mth-logo">NT</span>
+        <span className="mth-title">{titles[active]}</span>
+      </div>
+      <div className="mth-right"/>
+    </header>
+  );
+}
+
+/* ── Main App ────────────────────────────────────────── */
 function AppInner() {
   const { user, loading } = useAuth();
   const [active,           setActive]           = useState("tasks");
@@ -27,41 +71,44 @@ function AppInner() {
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? "sb-collapsed" : ""}`}>
-      {/* ── Offline / Online banner ─────────────────── */}
       <OfflineBanner/>
 
-      {/* Mobile overlay */}
-      {mobileSbOpen && <div className="mobile-overlay" onClick={() => setMobileSbOpen(false)}/>}
+      {/* ── Mobile sidebar overlay ── */}
+      {mobileSbOpen && (
+        <div className="mobile-overlay" onClick={() => setMobileSbOpen(false)}/>
+      )}
 
-      {/* Mobile hamburger */}
-      <button className="mobile-ham" onClick={() => setMobileSbOpen(true)}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="3" y1="6" x2="21" y2="6"/>
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-      </button>
+      {/* ── Mobile top header (hidden on desktop) ── */}
+      <MobileHeader
+        active={active}
+        activeCat={activeCat}
+        activeNotebook={activeNotebook}
+        onMenuOpen={() => setMobileSbOpen(true)}
+      />
 
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <div className={`sidebar-slot ${mobileSbOpen ? "mobile-open" : ""}`}>
         <Sidebar
           active={active}
-          setActive={(v)  => { setActive(v);         setMobileSbOpen(false); }}
+          setActive={v     => { setActive(v);              setMobileSbOpen(false); }}
           activeCat={activeCat}
-          setActiveCat={(v) => { setActiveCat(v);    setMobileSbOpen(false); }}
+          setActiveCat={v  => { setActiveCat(v);           setMobileSbOpen(false); }}
           activeNotebook={activeNotebook}
-          setActiveNotebook={(v) => { setActiveNotebook(v); setMobileSbOpen(false); }}
+          setActiveNotebook={v => { setActiveNotebook(v);  setMobileSbOpen(false); }}
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
         />
       </div>
 
-      {/* Main content */}
+      {/* ── Main content ── */}
       <main className={`app-main ${active === "notebook" ? "nb-active" : ""}`}>
         {active === "tasks"    && <Tasks    filterCat={activeCat}/>}
         {active === "notes"    && <Notes/>}
         {active === "notebook" && <Notebook notebook={activeNotebook}/>}
       </main>
+
+      {/* ── Mobile bottom nav (hidden on desktop) ── */}
+      <MobileBottomNav active={active} setActive={v => { setActive(v); setActiveCat(null); }}/>
     </div>
   );
 }
