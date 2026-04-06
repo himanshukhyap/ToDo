@@ -822,3 +822,78 @@ body{background:var(--bg);color:var(--text);}
   flex-shrink: 0;
   margin-left: auto;
 }
+
+/* ═══════════════════════════════════════════════════
+   OFFLINE / ONLINE STATUS
+   ═══════════════════════════════════════════════════ */
+
+/* Top banner — spans full width above layout */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  animation: slideDown 0.25s ease;
+}
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.offline-banner.offline {
+  background: #92400e;
+  color: #fde68a;
+  border-bottom: 1px solid #b45309;
+}
+.offline-banner.online {
+  background: #065f46;
+  color: #a7f3d0;
+  border-bottom: 1px solid #059669;
+}
+
+/* Shift layout down when banner is showing */
+.app-layout:has(+ .offline-banner) {
+  padding-top: 40px;
+}
+
+/* Small green/orange dot in sidebar */
+.online-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.online-dot.online {
+  background: var(--green);
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.25);
+}
+.online-dot.offline {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245,158,11,0.25);
+  animation: pulse-dot 1.5s ease infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* Sidebar footer row with theme toggle + online dot */
+.sb-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 8px;
+}
+.sb-footer-row .sb-footer-btn {
+  flex: 1;
+}

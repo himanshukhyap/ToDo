@@ -5,6 +5,7 @@ import { useCategories } from "../hooks/useCategories";
 import { useNotebooks } from "../hooks/useNotebook";
 import { deleteNotebook as svcDeleteNotebook } from "../services/notebookDeleteService";
 import { confirmDelete, confirmLogout, errorAlert } from "../utils/swal";
+import { OnlineDot } from "./OfflineBanner";
 import {
   CheckSquare, StickyNote, BookOpen, ChevronDown, ChevronRight,
   Plus, Sun, Moon, LogOut, MoreHorizontal, Pencil, Trash2,
@@ -295,10 +296,13 @@ export default function Sidebar({
 
       {/* Footer */}
       <div className="sb-footer">
-        <button className="sb-footer-btn" onClick={toggle}>
-          {theme==="dark" ? <Sun size={16}/> : <Moon size={16}/>}
-          <span>{theme==="dark" ? "Light mode" : "Dark mode"}</span>
-        </button>
+        <div className="sb-footer-row">
+          <button className="sb-footer-btn" onClick={toggle}>
+            {theme==="dark" ? <Sun size={16}/> : <Moon size={16}/>}
+            <span>{theme==="dark" ? "Light mode" : "Dark mode"}</span>
+          </button>
+          <OnlineDot/>
+        </div>
         <div className="sb-user" ref={userRef}>
           <button className="sb-user-trigger" onClick={() => setUserOpen(o => !o)}>
             {user?.photoURL
@@ -323,7 +327,7 @@ export default function Sidebar({
             </div>
           )}
         </div>
-      </div>
+      </div>  {/* /sb-footer */}
     </aside>
   );
 }
