@@ -6,6 +6,7 @@ import { useNotebooks } from "../hooks/useNotebook";
 import { deleteNotebook as svcDeleteNotebook } from "../services/notebookDeleteService";
 import { confirmDelete, confirmLogout, errorAlert } from "../utils/swal";
 import { OnlineDot } from "./OfflineBanner";
+import InstallPWA from "./InstallPWA";
 import {
   CheckSquare, StickyNote, BookOpen, ChevronDown, ChevronRight,
   Plus, Sun, Moon, LogOut, MoreHorizontal, Pencil, Trash2,
@@ -303,6 +304,7 @@ export default function Sidebar({
           </button>
           <OnlineDot/>
         </div>
+        <InstallPWA/>
         <div className="sb-user" ref={userRef}>
           <button className="sb-user-trigger" onClick={() => setUserOpen(o => !o)}>
             {user?.photoURL

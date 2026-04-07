@@ -1,9 +1,8 @@
 import { initializeApp } from "firebase/app";
 import {
-  getFirestore,
-  enableIndexedDbPersistence,
-  CACHE_SIZE_UNLIMITED,
   initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
 } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
@@ -18,26 +17,23 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with unlimited cache size for offline support
+/**
+ * Initialize Firestore with persistent local cache.
+ *
+ * Replaces the deprecated enableIndexedDbPersistence() API.
+ * persistentMultipleTabManager() lets offline work across multiple
+ * tabs simultaneously — old API only allowed one tab at a time.
+ *
+ * All writes made offline are queued in IndexedDB and automatically
+ * synced to the server the moment connectivity is restored.
+ */
 export const db = initializeFirestore(app, {
-  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
 });
 
-// Enable offline persistence — data available even without internet
-// Safe to use now because all queries include where("uid","==",uid) filter
-enableIndexedDbPersistence(db, { forceOwnership: false })
-  .then(() => {
-    console.log("[Firebase] Offline persistence enabled ✓");
-  })
-  .catch((err) => {
-    if (err.code === "failed-precondition") {
-      // Multiple tabs open — persistence only works in one tab at a time
-      console.warn("[Firebase] Offline persistence unavailable — multiple tabs open");
-    } else if (err.code === "unimplemented") {
-      // Browser doesn't support IndexedDB
-      console.warn("[Firebase] Offline persistence not supported by this browser");
-    }
-  });
+console.log("[Firebase] Offline persistence enabled ✓ (IndexedDB, multi-tab)");
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

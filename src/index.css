@@ -1217,6 +1217,49 @@ body{background:var(--bg);color:var(--text);}
   color: #a7f3d0;
   border-bottom: 1px solid #059669;
 }
+/* Blue pulsing banner while syncing pending writes */
+.offline-banner.syncing {
+  background: #1e3a5f;
+  color: #93c5fd;
+  border-bottom: 1px solid #2563eb;
+}
+.offline-banner.syncing .spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg);   }
+  to   { transform: rotate(360deg); }
+}
+
+/* PWA install button in sidebar footer */
+.pwa-install-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 12px;
+  margin-top: 4px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.pwa-install-btn:hover { opacity: 0.85; }
+
+/* "App installed" badge */
+.pwa-installed-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
 
 /* Small green/orange dot in sidebar */
 .online-dot {

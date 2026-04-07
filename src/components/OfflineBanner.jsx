@@ -1,38 +1,60 @@
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
-import { Wifi, WifiOff, RefreshCw, CheckCircle } from "lucide-react";
+import { usePendingWrites } from "../hooks/usePendingWrites";
+import { WifiOff, CheckCircle, RefreshCw } from "lucide-react";
 
 /**
  * OfflineBanner
- * Shows:
- *  - Orange banner when offline  → "You're offline. Changes will sync when reconnected."
- *  - Green flash when back online → "Back online! Syncing your changes…"
- *  - Nothing when normally online
+ *
+ * Renders one of three states at the top of the app:
+ *  1. Offline  → orange banner explaining local-save mode
+ *  2. Syncing  → blue pulsing banner while pending writes are flushing
+ *  3. Synced   → green flash (4 s) confirming everything is saved
+ *  4. Nothing  → hidden when fully online and in sync
  */
 export default function OfflineBanner() {
   const { isOnline, wasOffline } = useOnlineStatus();
+  const { hasPending, syncedAt  } = usePendingWrites();
 
-  if (isOnline && !wasOffline) return null;  // Normal online state — hide
+  // Fully online, nothing pending, no recent sync → hide
+  if (isOnline && !hasPending && !wasOffline) return null;
 
+  // Offline
   if (!isOnline) {
     return (
       <div className="offline-banner offline">
-        <WifiOff size={15}/>
-        <span>You're offline — all changes saved locally, will sync when reconnected</span>
+        <WifiOff size={15} />
+        <span>
+          You're offline — all changes are saved locally
+          {hasPending && " and will sync automatically when reconnected"}
+        </span>
       </div>
     );
   }
 
-  // wasOffline — just came back online
+  // Back online and still flushing unsynced writes
+  if (isOnline && hasPending) {
+    return (
+      <div className="offline-banner syncing">
+        <RefreshCw size={15} className="spin" />
+        <span>Back online — syncing your offline changes…</span>
+      </div>
+    );
+  }
+
+  // Just finished syncing (wasOffline briefly true) or syncedAt just set
   return (
     <div className="offline-banner online">
-      <CheckCircle size={15}/>
-      <span>Back online! Syncing your changes…</span>
+      <CheckCircle size={15} />
+      <span>
+        All changes synced
+        {syncedAt ? ` at ${syncedAt.toLocaleTimeString()}` : ""}
+      </span>
     </div>
   );
 }
 
 /**
- * Small dot indicator in sidebar footer (always visible)
+ * OnlineDot — small indicator used in the Sidebar footer (unchanged API).
  */
 export function OnlineDot() {
   const { isOnline } = useOnlineStatus();
@@ -43,3 +65,4 @@ export function OnlineDot() {
     />
   );
 }
+

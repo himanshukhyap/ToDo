@@ -113,9 +113,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api/],
       },
 
-      // Dev options — enable in development too for testing
+      // Dev options — set enabled:true to test PWA locally (service worker runs in dev)
       devOptions: {
-        enabled: false,   // Set true to test PWA locally
+        enabled: true,   // ← changed from false; lets you test offline locally
         type:    'module',
       },
     }),
