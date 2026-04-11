@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "firebase:login": "firebase login",
+    "deploy:hosting": "npm run build && firebase deploy --only hosting --project todo-ec064",
+    "deploy:firestore": "firebase deploy --only firestore --project todo-ec064",
+    "deploy": "npm run build && firebase deploy --project todo-ec064"
   },
   "dependencies": {
     "@tiptap/extension-bold": "^2.4.0",

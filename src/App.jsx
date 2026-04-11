@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import LoginPage from "./components/LoginPage";
@@ -6,16 +6,18 @@ import Sidebar from "./components/Sidebar";
 import Tasks from "./components/Tasks";
 import Notes from "./components/Notes";
 import Notebook from "./components/Notebook";
+import AdminPanel from "./components/AdminPanel";
 import OfflineBanner from "./components/OfflineBanner";
-import { CheckSquare, StickyNote, BookOpen, Menu, X } from "lucide-react";
+import { CheckSquare, StickyNote, BookOpen, Shield, Menu } from "lucide-react";
 
 /* ── Mobile Bottom Nav ───────────────────────────────── */
-function MobileBottomNav({ active, setActive }) {
+function MobileBottomNav({ active, setActive, isAdmin }) {
   const tabs = [
     { id: "tasks",    icon: <CheckSquare size={22}/>, label: "Tasks"    },
     { id: "notes",    icon: <StickyNote  size={22}/>, label: "Notes"    },
     { id: "notebook", icon: <BookOpen    size={22}/>, label: "Notebook" },
   ];
+  if (isAdmin) tabs.push({ id: "admin", icon: <Shield size={22}/>, label: "Admin" });
   return (
     <nav className="mobile-bottom-nav">
       {tabs.map(t => (
@@ -36,6 +38,7 @@ function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
     tasks:    activeCat ? activeCat.name || "Tasks" : "Tasks",
     notes:    "Notes",
     notebook: activeNotebook?.notebookName || "Notebook",
+    admin:    "Admin Panel",
   };
   return (
     <header className="mobile-top-header">
@@ -53,12 +56,16 @@ function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
 
 /* ── Main App ────────────────────────────────────────── */
 function AppInner() {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const [active,           setActive]           = useState("tasks");
   const [activeCat,        setActiveCat]        = useState(null);
   const [activeNotebook,   setActiveNotebook]   = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSbOpen,     setMobileSbOpen]     = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin && active === "admin") setActive("tasks");
+  }, [active, isAdmin]);
 
   if (loading) return (
     <div className="splash">
@@ -95,6 +102,7 @@ function AppInner() {
           setActiveCat={v  => { setActiveCat(v);           setMobileSbOpen(false); }}
           activeNotebook={activeNotebook}
           setActiveNotebook={v => { setActiveNotebook(v);  setMobileSbOpen(false); }}
+          isAdmin={isAdmin}
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
         />
@@ -105,10 +113,18 @@ function AppInner() {
         {active === "tasks"    && <Tasks    filterCat={activeCat}/>}
         {active === "notes"    && <Notes/>}
         {active === "notebook" && <Notebook notebook={activeNotebook}/>}
+        {active === "admin"    && <AdminPanel/>}
       </main>
 
       {/* ── Mobile bottom nav (hidden on desktop) ── */}
-      <MobileBottomNav active={active} setActive={v => { setActive(v); setActiveCat(null); }}/>
+      <MobileBottomNav
+        active={active}
+        isAdmin={isAdmin}
+        setActive={v => {
+          setActive(v);
+          setActiveCat(null);
+        }}
+      />
     </div>
   );
 }

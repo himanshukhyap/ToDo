@@ -14,6 +14,13 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == request.resource.data.uid;
     }
 
+    function isAdminEmail() {
+      return isAuth() && request.auth.token.email in [
+        "himanshu.kashyap0582@gmail.com",
+        "himanshu.khyap@gmail.com"
+      ];
+    }
+
     match /notes/{id} {
       allow read:   if isOwner();
       allow create: if isCreatingOwn();
@@ -61,6 +68,15 @@ service cloud.firestore {
       allow create: if isCreatingOwn();
       allow update: if isOwner();
       allow delete: if isOwner();
+    }
+
+    match /app_settings/{id} {
+      allow read: if isAuth();
+      allow create, update: if isAdminEmail()
+        && request.resource.data.sessionTimeoutMinutes is number
+        && request.resource.data.sessionTimeoutMinutes >= 1
+        && request.resource.data.sessionTimeoutMinutes <= 240;
+      allow delete: if false;
     }
   }
 }

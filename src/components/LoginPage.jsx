@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle } from "lucide-react";
 
@@ -29,6 +29,14 @@ export default function LoginPage() {
   const [showPw, setShowPw]   = useState(false);
   const [loading, setLoading] = useState(null);
   const [error, setError]     = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    const expiredAt = sessionStorage.getItem("sessionExpiredAt");
+    if (!expiredAt) return;
+    setSessionExpired(true);
+    sessionStorage.removeItem("sessionExpiredAt");
+  }, []);
 
   const wrap = async (key, fn) => {
     setLoading(key); setError("");
@@ -75,6 +83,11 @@ export default function LoginPage() {
         {error && (
           <div className="login-error">
             <AlertCircle size={14}/> {error}
+          </div>
+        )}
+        {sessionExpired && (
+          <div className="login-error login-warn">
+            <AlertCircle size={14}/> Session expired after 10 minutes of inactivity. Please sign in again.
           </div>
         )}
 
