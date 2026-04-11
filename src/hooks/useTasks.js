@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
-  onSnapshot, query, where, orderBy, serverTimestamp, arrayUnion,
+  onSnapshot, query, where, orderBy, serverTimestamp, arrayUnion, writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -83,6 +83,23 @@ export function useTasks() {
     }
   };
 
+  const deleteAllTasks = async (taskIds = []) => {
+    if (!taskIds.length) return;
+    try {
+      for (let i = 0; i < taskIds.length; i += 450) {
+        const batch = writeBatch(db);
+        taskIds.slice(i, i + 450).forEach((id) => {
+          batch.delete(doc(db, "tasks", id));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.error("[Tasks] deleteAllTasks error:", e.code, e.message);
+      setError(`Delete all failed: ${e.message}`);
+      throw e;
+    }
+  };
+
   const toggleTask = (id, current) =>
     updateTask(id, { completed: !current });
 
@@ -146,6 +163,6 @@ export function useTasks() {
   return {
     tasks, loading, error,
     addTask, updateTask, deleteTask, toggleTask,
-    addSubtask, updateSubtask, toggleSubtask, deleteSubtask,
+    addSubtask, updateSubtask, toggleSubtask, deleteSubtask, deleteAllTasks,
   };
 }
