@@ -330,7 +330,7 @@ export default function Tasks({ filterCat: externalCat }) {
           <CheckSquare size={18}/>
           <span>Tasks</span>
           {activeCatName && <span className="panel-cat-chip">{activeCatName}</span>}
-          <span className="badge">{tasks.length}</span>
+          <span className="badge">{filtered.length}</span>
         </div>
         <div className="panel-header-right">
           <div className="search-wrap">
@@ -389,8 +389,8 @@ export default function Tasks({ filterCat: externalCat }) {
       ) : (
         <>
           <div className="overall-progress">
-            <span>{tasks.filter(t=>t.completed).length}/{tasks.length} completed</span>
-            <div className="prog-bar"><div className="prog-fill" style={{width:`${(tasks.filter(t=>t.completed).length/tasks.length)*100}%`}}/></div>
+            <span>{filtered.filter(t=>t.completed).length}/{filtered.length} completed</span>
+            <div className="prog-bar"><div className="prog-fill" style={{width:`${(filtered.filter(t=>t.completed).length/filtered.length)*100}%`}}/></div>
           </div>
 
           <div className="tasks-desktop">

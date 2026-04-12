@@ -211,6 +211,70 @@ function buildExistingMaps(data) {
   };
 }
 
+function shouldReadExistingData(selectionMap, skipDuplicates) {
+  if (skipDuplicates) return true;
+
+  return (
+    (selectionMap.tasks && !selectionMap.categories) ||
+    (selectionMap.nb_sections && !selectionMap.notebooks) ||
+    (selectionMap.nb_pages && (!selectionMap.notebooks || !selectionMap.nb_sections)) ||
+    (selectionMap.nb_trash && (!selectionMap.notebooks || !selectionMap.nb_sections || !selectionMap.nb_pages))
+  );
+}
+
+function seedCategoryMapFromBackup(backup, existingMaps, categoryMap) {
+  if (!existingMaps) return;
+
+  backup.categories.forEach((item) => {
+    const existingId = existingMaps.categories.get(normalizeText(item.name));
+    if (existingId) {
+      categoryMap.set(item.id, existingId);
+    }
+  });
+}
+
+function seedNotebookMapFromBackup(backup, existingMaps, notebookMap) {
+  if (!existingMaps) return;
+
+  backup.notebooks.forEach((item) => {
+    const existingId = existingMaps.notebooks.get(normalizeText(item.notebookName));
+    if (existingId) {
+      notebookMap.set(item.id, existingId);
+    }
+  });
+}
+
+function seedSectionMapFromBackup(backup, existingMaps, notebookMap, sectionMap) {
+  if (!existingMaps) return;
+
+  backup.sections.forEach((item) => {
+    const targetNotebookId = notebookMap.get(item.notebookId) || null;
+    const existingId = existingMaps.sections.get(
+      `${targetNotebookId || ""}::${normalizeText(item.sectionName)}`
+    );
+
+    if (existingId) {
+      sectionMap.set(item.id, existingId);
+    }
+  });
+}
+
+function seedPageMapFromBackup(backup, existingMaps, notebookMap, sectionMap, pageMap) {
+  if (!existingMaps) return;
+
+  backup.pages.forEach((item) => {
+    const targetNotebookId = notebookMap.get(item.notebookId) || null;
+    const targetSectionId = sectionMap.get(item.sectionId) || null;
+    const existingId = existingMaps.pages.get(
+      `${targetNotebookId || ""}::${targetSectionId || ""}::${normalizeText(item.pageName)}::${normalizeRichText(item.textContent)}`
+    );
+
+    if (existingId) {
+      pageMap.set(item.id, existingId);
+    }
+  });
+}
+
 async function readExistingUserData(uid) {
   const collections = await Promise.all(USER_COLLECTIONS.map((name) => readCollection(name, uid)));
   return {
@@ -280,13 +344,20 @@ export async function importUserBackupWithOptions(user, fileText, options = {}) 
   const selectedCollections = options.selectedCollections || DEFAULT_SELECTED_COLLECTIONS;
   const selectionMap = buildSelectionMap(selectedCollections);
   const skipDuplicates = options.skipDuplicates !== false;
-  const existingData = skipDuplicates ? await readExistingUserData(user.uid) : null;
+  const existingData = shouldReadExistingData(selectionMap, skipDuplicates)
+    ? await readExistingUserData(user.uid)
+    : null;
   const existingMaps = existingData ? buildExistingMaps(existingData) : null;
   const categoryMap = new Map();
   const notebookMap = new Map();
   const sectionMap = new Map();
   const pageMap = new Map();
   const summary = setSummaryTotals(createSummary(), backup);
+
+  seedCategoryMapFromBackup(backup, existingMaps, categoryMap);
+  seedNotebookMapFromBackup(backup, existingMaps, notebookMap);
+  seedSectionMapFromBackup(backup, existingMaps, notebookMap, sectionMap);
+  seedPageMapFromBackup(backup, existingMaps, notebookMap, sectionMap, pageMap);
 
   if (selectionMap.categories) {
     for (const item of backup.categories) {
@@ -381,6 +452,8 @@ export async function importUserBackupWithOptions(user, fileText, options = {}) 
     }
   }
 
+  seedSectionMapFromBackup(backup, existingMaps, notebookMap, sectionMap);
+
   if (selectionMap.nb_sections) {
     for (const item of backup.sections) {
       const targetNotebookId = notebookMap.get(item.notebookId) || null;
@@ -404,6 +477,8 @@ export async function importUserBackupWithOptions(user, fileText, options = {}) 
       summary.nb_sections.imported += 1;
     }
   }
+
+  seedPageMapFromBackup(backup, existingMaps, notebookMap, sectionMap, pageMap);
 
   if (selectionMap.nb_pages) {
     for (const item of backup.pages) {

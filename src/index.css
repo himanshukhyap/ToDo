@@ -363,7 +363,7 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 .qcat-btn{display:inline-flex;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:0;color:var(--text3);font-family:'Inter',sans-serif;font-size:12px;}
 .qcat-btn:hover{color:var(--text2);}
 .qcat-placeholder{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);background:var(--surface2);border:1px dashed var(--border2);padding:2px 8px;border-radius:99px;}
-.qcat-dropdown{position:absolute;left:0;top:calc(100% + 4px);z-index:50;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:4px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fadeIn .12s ease;}
+.qcat-dropdown{position:relative;left:0;top:calc(100% + 4px);z-index:50;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:4px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fadeIn .12s ease;}
 
 /* ── Fixed-height sticky note cards ──────────────────────── */
 .notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;align-items:start;}
