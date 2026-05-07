@@ -30,6 +30,22 @@ export async function confirmDelete(itemName = "this item") {
   return r.isConfirmed;
 }
 
+export async function confirmBulkDelete(itemName = "items", count = 0) {
+  const r = await Swal.fire({
+    ...base(),
+    title: "Delete all?",
+    html: `Are you sure you want to delete <b>all ${count} ${itemName}</b>?<br/><small style="color:#94a3b8">This cannot be undone.</small>`,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "Yes, delete all",
+    cancelButtonColor: "#6b7280",
+    cancelButtonText: "Cancel",
+    reverseButtons: true,
+    focusCancel: true,
+  });
+  return r.isConfirmed;
+}
+
 export async function confirmLogout() {
   const r = await Swal.fire({
     ...base(),

@@ -9,7 +9,7 @@ import { NotesSkeleton } from "./Loader";
 import {
   Plus, Pencil, Trash2, Copy, Check, X, FileText, Share2,
   Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
-  Strikethrough, ChevronDown, ChevronUp, Eye,
+  Strikethrough, Eye,
 } from "lucide-react";
 
 async function shareContent(title, text) {
@@ -143,10 +143,9 @@ function NoteModal({ note, onClose, onEdit }) {
 /* ── Note Card ───────────────────────────────────────── */
 const PREVIEW_HEIGHT = 160;
 
-function NoteCard({ note, onEdit, onDelete }) {
+function NoteCard({ note, onEdit, onDelete, onOpen }) {
   const [copied, setCopied]     = useState(false);
   const [shared, setShared]     = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [overflow, setOverflow] = useState(false);
   const cfg = getColorCfg(note.color);
 
@@ -177,7 +176,7 @@ function NoteCard({ note, onEdit, onDelete }) {
     ? note.updatedAt.toDate().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "";
 
   return (
-    <div className={`note-card ${expanded ? "note-expanded" : ""}`}
+    <div className="note-card"
       style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>
       <div className="note-fold"/>
 
@@ -185,18 +184,18 @@ function NoteCard({ note, onEdit, onDelete }) {
       <div
         ref={contentRef}
         className="note-body tt-view"
-        style={{ maxHeight: expanded ? "none" : `${PREVIEW_HEIGHT}px`, overflow: "hidden", position: "relative" }}
+        style={{ maxHeight: `${PREVIEW_HEIGHT}px`, overflow: "hidden", position: "relative" }}
         dangerouslySetInnerHTML={{ __html: note.htmlContent || `<p>${note.content||""}</p>` }}
       />
 
       {/* Gradient fade when truncated */}
-      {overflow && !expanded && <div className="note-fade"/>}
+      {overflow && <div className="note-fade"/>}
 
-      {/* Read more / collapse */}
+      {/* Read more */}
       {overflow && (
-        <button className="note-read-more" onClick={() => setExpanded(!expanded)}
+        <button className="note-read-more" onClick={() => onOpen(note)}
           style={{ color: cfg.text }}>
-          {expanded ? <><ChevronUp size={12}/> Show less</> : <><Eye size={12}/> Read more</>}
+          <Eye size={12}/> Read more
         </button>
       )}
 
@@ -227,6 +226,7 @@ export default function Notes() {
   const [adding, setAdding]       = useState(false);
   const [editingNote, setEditing] = useState(null);
   const [search, setSearch]       = useState("");
+  const [activeNote, setActiveNote] = useState(null);
 
   const filtered = notes.filter(n =>
     (n.textContent || n.content || "").toLowerCase().includes(search.toLowerCase())
@@ -279,10 +279,18 @@ export default function Notes() {
                 onSave={handleSave} onCancel={() => setEditing(null)}/>
             ) : (
               <NoteCard key={note.id} note={note}
-                onEdit={setEditing} onDelete={deleteNote}/>
+                onEdit={setEditing} onDelete={deleteNote} onOpen={setActiveNote}/>
             )
           )}
         </div>
+      )}
+
+      {activeNote && (
+        <NoteModal
+          note={activeNote}
+          onClose={() => setActiveNote(null)}
+          onEdit={setEditing}
+        />
       )}
     </div>
   );

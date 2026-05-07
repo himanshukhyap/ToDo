@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTasks } from "../hooks/useTasks";
 import { useCategories } from "../hooks/useCategories";
-import { confirmDelete, errorAlert } from "../utils/swal";
+import { confirmBulkDelete, confirmDelete, errorAlert, toast } from "../utils/swal";
 import { TasksSkeleton } from "./Loader";
 import {
   CheckSquare, Plus, Check, X,
@@ -273,11 +273,12 @@ function TaskList({ tasks, categories, emptyMsg, handlers, onManageCat }) {
 /* ── Main Tasks panel ───────────────────────────────────── */
 export default function Tasks({ filterCat: externalCat }) {
   const { tasks, loading, error, addTask, updateTask, deleteTask, toggleTask,
-    addSubtask, updateSubtask, toggleSubtask, deleteSubtask } = useTasks();
+    addSubtask, updateSubtask, toggleSubtask, deleteSubtask, deleteAllTasks } = useTasks();
   const { categories } = useCategories();
   const [showCatMgr, setShowCatMgr] = useState(false);
   const [search,     setSearch]     = useState("");
   const [mobileTab,  setMobileTab]  = useState("pending");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const isSearching = search.trim().length > 0;
 
@@ -305,6 +306,22 @@ export default function Tasks({ filterCat: externalCat }) {
     ? categories.find(c => c.id === externalCat)?.name
     : null;
 
+  const handleDeleteAllTasks = async () => {
+    if (!tasks.length || bulkDeleting) return;
+    const ok = await confirmBulkDelete("tasks", tasks.length);
+    if (!ok) return;
+
+    setBulkDeleting(true);
+    try {
+      await deleteAllTasks(tasks.map((task) => task.id));
+      toast("success", `${tasks.length} tasks deleted`);
+    } catch (e) {
+      errorAlert(`Could not delete all tasks: ${e.message}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="tab-panel">
       {/* Header */}
@@ -313,7 +330,7 @@ export default function Tasks({ filterCat: externalCat }) {
           <CheckSquare size={18}/>
           <span>Tasks</span>
           {activeCatName && <span className="panel-cat-chip">{activeCatName}</span>}
-          <span className="badge">{tasks.length}</span>
+          <span className="badge">{filtered.length}</span>
         </div>
         <div className="panel-header-right">
           <div className="search-wrap">
@@ -324,6 +341,15 @@ export default function Tasks({ filterCat: externalCat }) {
           </div>
           <button className="btn-ghost sm" onClick={() => setShowCatMgr(true)}>
             <Folder size={14}/> Categories
+          </button>
+          <button
+            className="btn-ghost sm"
+            onClick={handleDeleteAllTasks}
+            disabled={!tasks.length || bulkDeleting}
+            title="Delete all tasks"
+          >
+            <Trash2 size={14}/>
+            {bulkDeleting ? "Deleting..." : "Delete All"}
           </button>
         </div>
       </div>
@@ -363,8 +389,8 @@ export default function Tasks({ filterCat: externalCat }) {
       ) : (
         <>
           <div className="overall-progress">
-            <span>{tasks.filter(t=>t.completed).length}/{tasks.length} completed</span>
-            <div className="prog-bar"><div className="prog-fill" style={{width:`${(tasks.filter(t=>t.completed).length/tasks.length)*100}%`}}/></div>
+            <span>{filtered.filter(t=>t.completed).length}/{filtered.length} completed</span>
+            <div className="prog-bar"><div className="prog-fill" style={{width:`${(filtered.filter(t=>t.completed).length/filtered.length)*100}%`}}/></div>
           </div>
 
           <div className="tasks-desktop">

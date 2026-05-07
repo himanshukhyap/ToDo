@@ -17,12 +17,23 @@ import { Download, CheckCircle } from "lucide-react";
  */
 export default function InstallPWA() {
   const { isInstallable, isInstalled, promptInstall } = usePWAInstall();
+  const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 
   if (isInstalled) {
     return (
       <div className="pwa-installed-badge">
         <CheckCircle size={13} />
         <span>App installed</span>
+      </div>
+    );
+  }
+
+  if (isIos && !isStandalone) {
+    return (
+      <div className="pwa-ios-hint">
+        <span className="pwa-ios-title">Install on iPhone</span>
+        <span className="pwa-ios-copy">Safari Share menu se "Add to Home Screen" choose karein.</span>
       </div>
     );
   }

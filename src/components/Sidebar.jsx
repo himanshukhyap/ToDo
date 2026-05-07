@@ -10,7 +10,7 @@ import InstallPWA from "./InstallPWA";
 import {
   CheckSquare, StickyNote, BookOpen, ChevronDown, ChevronRight,
   Plus, Sun, Moon, LogOut, MoreHorizontal, Pencil, Trash2,
-  Check, X, Menu, PanelLeftClose,
+  Check, X, Menu, PanelLeftClose, Shield,
 } from "lucide-react";
 
 const COLORS = ["#6366f1","#8b5cf6","#ec4899","#f43f5e","#f59e0b","#10b981","#06b6d4","#3b82f6","#84cc16","#f97316"];
@@ -78,9 +78,9 @@ function SbGroup({ label, icon, children, defaultOpen = true }) {
 /* ── Main Sidebar ─────────────────────────────── */
 export default function Sidebar({
   active, setActive, activeCat, setActiveCat,
-  activeNotebook, setActiveNotebook, collapsed, setCollapsed
+  activeNotebook, setActiveNotebook, isAdmin, collapsed, setCollapsed
 }) {
-  const { user, logout }  = useAuth();
+  const { user, logout, sessionTimeoutMs }  = useAuth();
   const { theme, toggle } = useTheme();
   const { categories, addCategory, updateCategory, deleteCategory } = useCategories();
   const { notebooks, createNotebook, renameNotebook } = useNotebooks();
@@ -158,6 +158,9 @@ export default function Sidebar({
         <button className={`sb-col-icon ${active==="tasks"    ? "active":""}`} onClick={()=>setActive("tasks")}    title="Tasks"><CheckSquare size={18}/></button>
         <button className={`sb-col-icon ${active==="notes"    ? "active":""}`} onClick={()=>setActive("notes")}    title="Notes"><StickyNote size={18}/></button>
         <button className={`sb-col-icon ${active==="notebook" ? "active":""}`} onClick={()=>setActive("notebook")} title="Notebook"><BookOpen size={18}/></button>
+        {isAdmin && (
+          <button className={`sb-col-icon ${active==="admin" ? "active":""}`} onClick={()=>setActive("admin")} title="Admin panel"><Shield size={18}/></button>
+        )}
       </div>
       <div className="sb-collapsed-bottom">
         <button className="sb-col-icon" onClick={toggle} title="Toggle theme">
@@ -293,6 +296,22 @@ export default function Sidebar({
             </button>
           )}
         </SbGroup>
+
+        {isAdmin && (
+          <>
+            <div className="sb-divider"/>
+            <SbGroup label="Admin" icon={<Shield size={15}/>}>
+              <button
+                className={`sb-item ${active==="admin" ? "active" : ""}`}
+                onClick={() => setActive("admin")}
+              >
+                <span className="sb-item-dot" style={{background:"var(--green)"}}/>
+                <span className="sb-item-label">Admin Panel</span>
+                <span className="sb-badge">{Math.round(sessionTimeoutMs / 60000)} min</span>
+              </button>
+            </SbGroup>
+          </>
+        )}
       </nav>
 
       {/* Footer */}
