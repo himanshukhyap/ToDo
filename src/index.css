@@ -491,7 +491,91 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 }
 .nb-empty-editor p{font-size:14px;max-width:260px;line-height:1.6;}
 
-/* 3-column layout */
+/* Shell + top tabs (OneNote-ish) */
+.nb-shell{display:flex;flex-direction:column;flex:1;height:100%;overflow:hidden;background:var(--bg);}
+.nb-topbar{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 10px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface2);
+  flex-shrink:0;
+}
+.nb-top-left{
+  display:flex;align-items:center;gap:8px;
+  min-width:190px;max-width:240px;flex:0 0 auto;
+  padding:0 6px;
+}
+.nb-nb-dot{
+  width:10px;height:10px;border-radius:999px;flex-shrink:0;
+  box-shadow:0 0 0 3px rgba(99,102,241,.12);
+}
+.nb-nb-title{
+  font-size:13px;font-weight:700;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.nb-tabs{
+  display:flex;align-items:stretch;gap:6px;
+  flex:1;overflow-x:auto;overflow-y:hidden;
+  padding-bottom:2px;
+}
+.nb-tabs::-webkit-scrollbar{height:4px;}
+.nb-tab{
+  display:flex;align-items:center;gap:8px;
+  min-height:34px;
+  padding:0 10px;
+  border-radius:10px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  cursor:pointer;
+  flex-shrink:0;
+  transition:background .12s,border-color .12s,transform .12s;
+  position:relative;
+}
+.nb-tab:hover{background:var(--surface3);border-color:var(--border2);}
+.nb-tab.active{
+  background:linear-gradient(180deg, var(--surface), var(--surface2));
+  border-color:var(--accent)55;
+}
+.nb-tab.deleting{opacity:.65;pointer-events:none;}
+.nb-tab-stripe{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+.nb-tab-name{font-size:13px;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.nb-tab.active .nb-tab-name{color:var(--text);font-weight:600;}
+.nb-tab-actions{display:flex;gap:2px;opacity:0;transition:opacity .12s;}
+.nb-tab:hover .nb-tab-actions{opacity:1;}
+.nb-tab-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:7px;border:none;
+  background:none;color:var(--text3);cursor:pointer;transition:all .12s;
+}
+.nb-tab-btn:hover{background:var(--surface3);color:var(--text);}
+.nb-tab-btn.danger:hover{background:var(--red)15;color:var(--red);}
+.nb-tab-btn.ok{background:var(--accent);color:white;}
+.nb-tab-btn.ok:hover:not(:disabled){background:var(--accent-h);}
+.nb-tab-btn:disabled{opacity:.45;cursor:not-allowed;}
+.nb-tab-spin{display:flex;align-items:center;justify-content:center;margin-left:2px;}
+.nb-tab-add-btn{
+  display:flex;align-items:center;gap:6px;
+  height:34px;padding:0 10px;
+  background:var(--accent)10;border:1px dashed var(--accent)40;
+  color:var(--accent-h);border-radius:10px;cursor:pointer;flex-shrink:0;
+  transition:background .12s,border-color .12s;
+}
+.nb-tab-add-btn:hover{background:var(--accent)16;border-color:var(--accent)60;}
+.nb-tab.nb-tab-add{
+  align-items:flex-start;
+  padding:8px 10px;
+  min-height:34px;
+  gap:8px;
+}
+.nb-tab-input{
+  flex:1;background:var(--surface);border:1px solid var(--accent)60;border-radius:7px;
+  padding:6px 8px;color:var(--text);font-size:13px;outline:none;min-width:160px;
+  font-family:'Inter',sans-serif;
+}
+.nb-tab-add-actions{display:flex;gap:4px;align-items:center;}
+.nb-tab-colors{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;}
+
+/* 2-column layout (pages + editor) */
 .nb-layout{display:flex;flex:1;height:100%;overflow:hidden;background:var(--bg);}
 
 /* ── Shared column header ──────────────── */
