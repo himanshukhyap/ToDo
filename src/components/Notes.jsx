@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNotes } from "../hooks/useNotes";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -85,6 +85,13 @@ function NoteEditor({ note, onSave, onCancel }) {
     if (!text.trim()) return;
     onSave(html, text, color);
   };
+
+  // Ctrl+S to save
+  useEffect(() => {
+    const fn = e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); handleSave(); } };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [handleSave]);
 
   return (
     <div className="note-editor-card" style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>

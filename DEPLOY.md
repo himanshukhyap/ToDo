@@ -7,6 +7,17 @@
 
 ## ✅ One-Click Deploy (Recommended)
 
+### Windows (PowerShell)
+```powershell
+.\deploy.ps1
+```
+
+### Windows (Command Prompt)
+```cmd
+deploy.bat
+```
+
+### macOS / Linux
 ```bash
 chmod +x deploy.sh
 ./deploy.sh

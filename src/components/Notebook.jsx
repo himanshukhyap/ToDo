@@ -127,7 +127,7 @@ function PageEditor({ page, onSave: saveFn }) {
     const fn = e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); handleSave(); } };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  });
+  }, [handleSave]);
 
   const ts = page?.updatedAt?.toDate
     ? page.updatedAt.toDate().toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })
