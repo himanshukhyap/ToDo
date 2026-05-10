@@ -7,8 +7,9 @@ import Tasks from "./components/Tasks";
 import Notes from "./components/Notes";
 import Notebook from "./components/Notebook";
 import AdminPanel from "./components/AdminPanel";
+import Trash from "./components/Trash";
 import OfflineBanner from "./components/OfflineBanner";
-import { CheckSquare, StickyNote, BookOpen, Shield, Menu } from "lucide-react";
+import { CheckSquare, StickyNote, BookOpen, Shield, Menu, Trash2 } from "lucide-react";
 
 /* ── Mobile Bottom Nav ───────────────────────────────── */
 function MobileBottomNav({ active, setActive, isAdmin }) {
@@ -16,6 +17,7 @@ function MobileBottomNav({ active, setActive, isAdmin }) {
     { id: "tasks",    icon: <CheckSquare size={22}/>, label: "Tasks"    },
     { id: "notes",    icon: <StickyNote  size={22}/>, label: "Notes"    },
     { id: "notebook", icon: <BookOpen    size={22}/>, label: "Notebook" },
+    { id: "trash",    icon: <Trash2      size={22}/>, label: "Trash"    },
   ];
   if (isAdmin) tabs.push({ id: "admin", icon: <Shield size={22}/>, label: "Admin" });
   return (
@@ -38,6 +40,7 @@ function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
     tasks:    activeCat ? activeCat.name || "Tasks" : "Tasks",
     notes:    "Notes",
     notebook: activeNotebook?.notebookName || "Notebook",
+    trash:    "Trash",
     admin:    "Admin Panel",
   };
   return (
@@ -113,6 +116,7 @@ function AppInner() {
         {active === "tasks"    && <Tasks    filterCat={activeCat}/>}
         {active === "notes"    && <Notes/>}
         {active === "notebook" && <Notebook notebook={activeNotebook}/>}
+        {active === "trash"    && <Trash/>}
         {active === "admin"    && <AdminPanel/>}
       </main>
 

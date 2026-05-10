@@ -1,86 +1,109 @@
 /**
- * Notebook Delete Service
- * 
- * Structure:
- *   notebooks  — fields: notebookId(auto), notebookName, uid, ...
- *   nb_sections — fields: sectionId(auto), sectionName, notebookId, uid, ...
- *   nb_pages    — fields: pageId(auto), pageName, sectionId, uid, ...
+ * Notebook delete + recycle bin (nb_trash)
  *
- * Deletion order:
- *   Delete Notebook  → Pages → Sections → Notebook
- *   Delete Section   → Pages → Section
- *   Delete Page      → Page only
+ * When user "deletes" a notebook/section/page:
+ * - snapshot the doc(s) into `nb_trash` (with `expireAt` = now + 30 days)
+ * - hard-delete originals
  *
- * NO batches, NO trash, NO soft-delete.
- * Pure sequential async/await hard deletes.
+ * Restore:
+ * - re-create original docs (same ids) and remove trash doc
  */
 
 import {
-  collection, addDoc, getDocs, deleteDoc,
-  doc, query, where, serverTimestamp,
+  Timestamp,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
-/* ──────────────────────────────────────────────────────
-   STEP 1 helper — delete all pages in one section
-   uid filter is mandatory for Firestore security rules
-   ────────────────────────────────────────────────────── */
-async function deleteAllPagesInSection(sectionId, uid) {
-  console.log(`[Delete] Fetching pages for section ${sectionId}...`);
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-  const q = query(
-    collection(db, "nb_pages"),
-    where("uid",       "==", uid),
-    where("sectionId", "==", sectionId)
+function expireIn30Days() {
+  return Timestamp.fromDate(new Date(Date.now() + THIRTY_DAYS_MS));
+}
+
+async function addTrashDoc(payload, uid) {
+  return addDoc(collection(db, "nb_trash"), {
+    ...payload,
+    uid,
+    deletedAt: serverTimestamp(),
+    expireAt: expireIn30Days(),
+    restored: false,
+  });
+}
+
+export async function deletePage(pageId, uid) {
+  const pageSnap = await getDoc(doc(db, "nb_pages", pageId));
+  if (!pageSnap.exists()) return;
+  const page = pageSnap.data();
+
+  await addTrashDoc(
+    {
+      type: "page",
+      originalId: pageId,
+      pageId,
+      pageName: page.pageName || "Page",
+      notebookId: page.notebookId || null,
+      sectionId: page.sectionId || null,
+      page: { ...page, uid },
+    },
+    uid
   );
 
-  const snap = await getDocs(q);
-  console.log(`[Delete] Found ${snap.size} pages to delete`);
-
-  // Sequential delete — one by one, stop on any failure
-  for (const pageDoc of snap.docs) {
-    console.log(`[Delete] Deleting page ${pageDoc.id}...`);
-    await deleteDoc(pageDoc.ref);
-    console.log(`[Delete] Page ${pageDoc.id} deleted ✓`);
-  }
+  await deleteDoc(pageSnap.ref);
 }
 
-/* ──────────────────────────────────────────────────────
-   DELETE PAGE
-   Direct hard delete — no dependencies
-   ────────────────────────────────────────────────────── */
-export async function deletePage(pageId, uid) {
-  console.log(`[Delete] Deleting page ${pageId}...`);
-  await deleteDoc(doc(db, "nb_pages", pageId));
-  console.log(`[Delete] Page ${pageId} deleted ✓`);
-}
-
-/* ──────────────────────────────────────────────────────
-   DELETE SECTION
-   Order: pages first → then section
-   ────────────────────────────────────────────────────── */
 export async function deleteSection(sectionId, notebookId, uid) {
-  console.log(`[Delete] Starting section delete: ${sectionId}`);
+  const sectionSnap = await getDoc(doc(db, "nb_sections", sectionId));
+  if (!sectionSnap.exists()) return { autoCreated: false };
+  const section = sectionSnap.data();
 
-  // Step 1: Delete all pages in this section
-  await deleteAllPagesInSection(sectionId, uid);
+  const pagesSnap = await getDocs(
+    query(
+      collection(db, "nb_pages"),
+      where("uid", "==", uid),
+      where("sectionId", "==", sectionId)
+    )
+  );
+  const pages = pagesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  // Step 2: Delete the section itself
-  console.log(`[Delete] Deleting section ${sectionId}...`);
-  await deleteDoc(doc(db, "nb_sections", sectionId));
-  console.log(`[Delete] Section ${sectionId} deleted ✓`);
+  await addTrashDoc(
+    {
+      type: "section",
+      originalId: sectionId,
+      sectionId,
+      sectionName: section.sectionName || "Section",
+      notebookId: notebookId || section.notebookId || null,
+      section: { ...section, uid },
+      pages,
+    },
+    uid
+  );
 
-  // Step 3: Check if notebook has no sections left → auto-create defaults
+  for (const pageDoc of pagesSnap.docs) {
+    // eslint-disable-next-line no-await-in-loop
+    await deleteDoc(pageDoc.ref);
+  }
+  await deleteDoc(sectionSnap.ref);
+
+  // if notebook has no sections left -> create defaults (same as before)
   const remainingSecs = await getDocs(
     query(
       collection(db, "nb_sections"),
-      where("uid",        "==", uid),
+      where("uid", "==", uid),
       where("notebookId", "==", notebookId)
     )
   );
 
   if (remainingSecs.empty) {
-    console.log(`[Delete] No sections left — creating defaults...`);
     const newSec = await addDoc(collection(db, "nb_sections"), {
       sectionName: "Section 1",
       notebookId,
@@ -88,53 +111,209 @@ export async function deleteSection(sectionId, notebookId, uid) {
       createdAt: serverTimestamp(),
     });
     await addDoc(collection(db, "nb_pages"), {
-      pageName:    "Page 1",
+      pageName: "Page 1",
       htmlContent: "",
       textContent: "",
-      sectionId:   newSec.id,
+      sectionId: newSec.id,
       notebookId,
       uid,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    console.log(`[Delete] Default section + page created ✓`);
     return { autoCreated: true };
   }
 
   return { autoCreated: false };
 }
 
-/* ──────────────────────────────────────────────────────
-   DELETE NOTEBOOK
-   Order: pages → sections → notebook (strict sequence)
-   ────────────────────────────────────────────────────── */
 export async function deleteNotebook(notebookId, uid) {
-  console.log(`[Delete] Starting notebook delete: ${notebookId}`);
+  const nbSnap = await getDoc(doc(db, "notebooks", notebookId));
+  if (!nbSnap.exists()) return;
+  const notebook = nbSnap.data();
 
-  // Step 1: Fetch all sections of this notebook
   const secsSnap = await getDocs(
     query(
       collection(db, "nb_sections"),
-      where("uid",        "==", uid),
+      where("uid", "==", uid),
       where("notebookId", "==", notebookId)
     )
   );
-  console.log(`[Delete] Found ${secsSnap.size} sections`);
+  const sections = secsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  // Step 2: For each section — delete all pages first, then section
+  const pagesSnap = await getDocs(
+    query(
+      collection(db, "nb_pages"),
+      where("uid", "==", uid),
+      where("notebookId", "==", notebookId)
+    )
+  );
+  const pages = pagesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  await addTrashDoc(
+    {
+      type: "notebook",
+      originalId: notebookId,
+      notebookId,
+      notebookName: notebook.notebookName || "Notebook",
+      notebook: { ...notebook, uid },
+      sections,
+      pages,
+    },
+    uid
+  );
+
+  for (const pageDoc of pagesSnap.docs) {
+    // eslint-disable-next-line no-await-in-loop
+    await deleteDoc(pageDoc.ref);
+  }
   for (const secDoc of secsSnap.docs) {
-    // Delete all pages in this section
-    await deleteAllPagesInSection(secDoc.id, uid);
-
-    // Then delete the section
-    console.log(`[Delete] Deleting section ${secDoc.id}...`);
+    // eslint-disable-next-line no-await-in-loop
     await deleteDoc(secDoc.ref);
-    console.log(`[Delete] Section ${secDoc.id} deleted ✓`);
+  }
+  await deleteDoc(nbSnap.ref);
+}
+
+export async function restoreFromTrash(item) {
+  if (!item?.id || !item?.type || !item?.uid) throw new Error("Invalid trash item.");
+
+  if (item.type === "page") {
+    const payload = { ...(item.page || {}), uid: item.uid, restoredAt: serverTimestamp(), restoredFromTrash: true };
+    const pageId = item.pageId || item.originalId;
+    if (!pageId) throw new Error("Missing pageId.");
+    const pageRef = doc(db, "nb_pages", pageId);
+    try {
+      const exists = await getDoc(pageRef);
+      if (exists.exists()) {
+        await addDoc(collection(db, "nb_pages"), payload);
+      } else {
+        await setDoc(pageRef, payload);
+      }
+    } catch (e) {
+      await addDoc(collection(db, "nb_pages"), payload);
+    }
+  } else if (item.type === "section") {
+    // restore with NEW ids to avoid permission-denied collisions
+    const createdSection = await addDoc(collection(db, "nb_sections"), {
+      ...(item.section || {}),
+      uid: item.uid,
+      restoredAt: serverTimestamp(),
+      restoredFromTrash: true,
+    });
+    const newSectionId = createdSection.id;
+
+    for (const p of item.pages || []) {
+      // eslint-disable-next-line no-await-in-loop
+      await addDoc(collection(db, "nb_pages"), {
+        ...p,
+        uid: item.uid,
+        sectionId: newSectionId,
+        restoredAt: serverTimestamp(),
+        restoredFromTrash: true,
+      });
+    }
+  } else if (item.type === "notebook") {
+    const originalNotebookId = item.notebookId || item.originalId || null;
+
+    // restore with NEW ids to avoid permission-denied collisions
+    const createdNotebook = await addDoc(collection(db, "notebooks"), {
+      ...(item.notebook || {}),
+      uid: item.uid,
+      restoredAt: serverTimestamp(),
+      restoredFromTrash: true,
+    });
+    const newNotebookId = createdNotebook.id;
+
+    const sectionIdMap = new Map();
+
+    const restoreSection = async (sectionPayload, oldSectionId) => {
+      const createdSection = await addDoc(collection(db, "nb_sections"), {
+        ...sectionPayload,
+        uid: item.uid,
+        notebookId: newNotebookId,
+        restoredAt: serverTimestamp(),
+        restoredFromTrash: true,
+      });
+      if (oldSectionId) sectionIdMap.set(oldSectionId, createdSection.id);
+      return createdSection.id;
+    };
+
+    const restorePage = async (pagePayload, mappedSectionId) => (
+      addDoc(collection(db, "nb_pages"), {
+        ...pagePayload,
+        uid: item.uid,
+        notebookId: newNotebookId,
+        sectionId: mappedSectionId || null,
+        restoredAt: serverTimestamp(),
+        restoredFromTrash: true,
+        updatedAt: pagePayload?.updatedAt || serverTimestamp(),
+      })
+    );
+
+    // 1) Restore embedded snapshot (if present)
+    for (const s of item.sections || []) {
+      // eslint-disable-next-line no-await-in-loop
+      await restoreSection(s, s.id);
+    }
+
+    for (const p of item.pages || []) {
+      const mappedSectionId = sectionIdMap.get(p.sectionId) || p.sectionId || null;
+      // eslint-disable-next-line no-await-in-loop
+      await restorePage(p, mappedSectionId);
+    }
+
+    // 2) If user deleted pages/sections before deleting notebook (or deleteSection auto-created
+    // default section/page), the notebook snapshot may not contain the full tree.
+    // Also restore any related nb_trash items that still exist for this notebook.
+    if (originalNotebookId) {
+      const relatedSnap = await getDocs(query(
+        collection(db, "nb_trash"),
+        where("uid", "==", item.uid),
+        where("restored", "==", false)
+      ));
+
+      const relatedSectionDocs = relatedSnap.docs.filter((d) => {
+        const data = d.data();
+        return data?.type === "section" && data?.notebookId === originalNotebookId;
+      });
+
+      for (const d of relatedSectionDocs) {
+        const t = { id: d.id, ...d.data() };
+        // eslint-disable-next-line no-await-in-loop
+        const newSectionId = await restoreSection((t.section || t), t.sectionId || t.originalId || t.id);
+
+        for (const p of t.pages || []) {
+          // eslint-disable-next-line no-await-in-loop
+          await restorePage(p, newSectionId);
+        }
+
+        // eslint-disable-next-line no-await-in-loop
+        await deleteDoc(d.ref);
+      }
+
+      const relatedPageDocs = relatedSnap.docs.filter((d) => {
+        const data = d.data();
+        return data?.type === "page" && data?.notebookId === originalNotebookId;
+      });
+
+      for (const d of relatedPageDocs) {
+        const t = { id: d.id, ...d.data() };
+        const pagePayload = t.page || t;
+        const oldSectionId = t.sectionId || pagePayload.sectionId || null;
+        const mappedSectionId = sectionIdMap.get(oldSectionId) || null;
+
+        // eslint-disable-next-line no-await-in-loop
+        await restorePage(pagePayload, mappedSectionId);
+        // eslint-disable-next-line no-await-in-loop
+        await deleteDoc(d.ref);
+      }
+    }
+  } else {
+    throw new Error(`Unsupported trash type: ${item.type}`);
   }
 
-  // Step 3: Delete the notebook
-  console.log(`[Delete] Deleting notebook ${notebookId}...`);
-  await deleteDoc(doc(db, "notebooks", notebookId));
-  console.log(`[Delete] Notebook ${notebookId} deleted ✓`);
-  console.log(`[Delete] Full cascade complete!`);
+  await deleteDoc(doc(db, "nb_trash", item.id));
+}
+
+export async function purgeTrashItem(id) {
+  await deleteDoc(doc(db, "nb_trash", id));
 }

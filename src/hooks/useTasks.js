@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import {
-  collection, addDoc, updateDoc, deleteDoc, doc,
-  onSnapshot, query, where, orderBy, serverTimestamp, arrayUnion, writeBatch,
+  collection, addDoc, updateDoc, doc,
+  onSnapshot, query, where, orderBy, serverTimestamp, arrayUnion,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { trashTask } from "../services/trashService";
 
 function genId() {
   return Math.random().toString(36).slice(2, 10);
@@ -72,12 +73,11 @@ export function useTasks() {
   };
 
   const deleteTask = async (id) => {
-    console.log("[Tasks] Deleting task:", id);
+    console.log("[Tasks] Moving task to trash:", id);
     try {
-      await deleteDoc(doc(db, "tasks", id));
-      console.log("[Tasks] Deleted successfully:", id);
+      await trashTask(id, user.uid);
     } catch (e) {
-      console.error("[Tasks] deleteDoc error:", e.code, e.message);
+      console.error("[Tasks] trash error:", e.code, e.message);
       setError(`Delete failed: ${e.message} — Check Firestore rules are deployed.`);
       throw e;
     }
@@ -86,12 +86,10 @@ export function useTasks() {
   const deleteAllTasks = async (taskIds = []) => {
     if (!taskIds.length) return;
     try {
-      for (let i = 0; i < taskIds.length; i += 450) {
-        const batch = writeBatch(db);
-        taskIds.slice(i, i + 450).forEach((id) => {
-          batch.delete(doc(db, "tasks", id));
-        });
-        await batch.commit();
+      for (const id of taskIds) {
+        // sequential to preserve per-item trash snapshots
+        // eslint-disable-next-line no-await-in-loop
+        await trashTask(id, user.uid);
       }
     } catch (e) {
       console.error("[Tasks] deleteAllTasks error:", e.code, e.message);

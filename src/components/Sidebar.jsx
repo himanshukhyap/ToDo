@@ -158,6 +158,7 @@ export default function Sidebar({
         <button className={`sb-col-icon ${active==="tasks"    ? "active":""}`} onClick={()=>setActive("tasks")}    title="Tasks"><CheckSquare size={18}/></button>
         <button className={`sb-col-icon ${active==="notes"    ? "active":""}`} onClick={()=>setActive("notes")}    title="Notes"><StickyNote size={18}/></button>
         <button className={`sb-col-icon ${active==="notebook" ? "active":""}`} onClick={()=>setActive("notebook")} title="Notebook"><BookOpen size={18}/></button>
+        <button className={`sb-col-icon ${active==="trash"    ? "active":""}`} onClick={()=>setActive("trash")}    title="Trash"><Trash2 size={18}/></button>
         {isAdmin && (
           <button className={`sb-col-icon ${active==="admin" ? "active":""}`} onClick={()=>setActive("admin")} title="Admin panel"><Shield size={18}/></button>
         )}
@@ -245,6 +246,14 @@ export default function Sidebar({
             <span className="sb-item-dot" style={{background:"var(--text3)"}}/> All Notes
           </button>
         </SbGroup>
+
+        <div className="sb-divider"/>
+
+        <button className={`sb-item ${active==="trash" ? "active" : ""}`} onClick={() => setActive("trash")}>
+          <span className="sb-item-dot" style={{background:"var(--red)"}}/>
+          <span className="sb-item-label">Trash</span>
+          <Trash2 size={14} style={{ marginLeft: "auto", opacity: 0.7 }} />
+        </button>
 
         <div className="sb-divider"/>
 

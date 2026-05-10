@@ -6,6 +6,7 @@ import {
 } from "firebase/auth";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, auth, googleProvider } from "../firebase";
+import { cleanupExpiredTrash } from "../services/trashCleanupService";
 
 const AuthContext = createContext(null);
 export const ADMIN_EMAILS = [
@@ -96,6 +97,29 @@ export function AuthProvider({ children }) {
         setSettingsLoading(false);
       }
     );
+  }, [user]);
+
+  // Manual recycle-bin cleanup (no billing / no TTL):
+  // run at most once per 12 hours per user session on this device.
+  useEffect(() => {
+    if (!user) return undefined;
+
+    const key = `trashCleanupAt::${user.uid}`;
+    const last = Number(localStorage.getItem(key) || 0);
+    const twelveHours = 12 * 60 * 60 * 1000;
+    if (Date.now() - last < twelveHours) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await cleanupExpiredTrash(user.uid);
+        if (!cancelled) localStorage.setItem(key, String(Date.now()));
+      } catch (e) {
+        console.warn("[TrashCleanup] failed:", e?.code, e?.message || e);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [user]);
 
   useEffect(() => {

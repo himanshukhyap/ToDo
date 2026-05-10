@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import {
-  collection, addDoc, updateDoc, deleteDoc, doc,
+  collection, addDoc, updateDoc, doc,
   onSnapshot, query, where, orderBy, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { trashNote } from "../services/trashService";
 
 export function useNotes() {
   const { user } = useAuth();
@@ -69,12 +70,11 @@ export function useNotes() {
   };
 
   const deleteNote = async (id) => {
-    console.log("[Notes] Deleting note:", id);
+    console.log("[Notes] Moving note to trash:", id);
     try {
-      await deleteDoc(doc(db, "notes", id));
-      console.log("[Notes] Deleted successfully:", id);
+      await trashNote(id, user.uid);
     } catch (e) {
-      console.error("[Notes] deleteDoc error:", e.code, e.message);
+      console.error("[Notes] trash error:", e.code, e.message);
       setError(`Delete failed: ${e.message} — Check Firestore rules are deployed.`);
       throw e;
     }

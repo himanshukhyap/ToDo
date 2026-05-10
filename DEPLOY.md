@@ -95,6 +95,15 @@ https://console.firebase.google.com/...createIndex...
 
 ---
 
+## 🗑️ Recycle Bin Auto Delete (30 days)
+
+App delete ko **Trash** me move karta hai (Notes/Tasks/Notebook). Billing off hone par Firestore TTL enable nahi hota, isliye app me **manual cleanup** implemented hai:
+
+- `expireAt` set hota hai (now + 30 days)
+- App login/usage ke time expired trash docs ko delete kar deta hai (periodic cleanup)
+
+---
+
 ## 🛑 Common Errors & Fixes
 
 | Error | Fix |

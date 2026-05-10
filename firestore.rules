@@ -70,6 +70,13 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
+    match /trash/{id} {
+      allow read:   if isOwner();
+      allow create: if isCreatingOwn();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
     match /app_settings/{id} {
       allow read: if isAuth();
       allow create, update: if isAdminEmail()
