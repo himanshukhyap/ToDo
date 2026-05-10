@@ -287,27 +287,31 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 .empty-sm{padding:14px 16px;font-size:13px;color:var(--text3);text-align:center;}
 
 /* ── Notes grid & sticky cards ──────────── */
-.note-color-picker{display:flex;flex-wrap:wrap;gap:7px;padding:4px 0 2px;}
-.note-color-dot{width:22px;height:22px;border-radius:50%;border:2.5px solid transparent;cursor:pointer;outline:none;transition:transform .12s;flex-shrink:0;}
-.note-color-dot:hover{transform:scale(1.2);}
-.note-color-dot.active{border-color:rgba(0,0,0,.45)!important;transform:scale(1.15);box-shadow:0 0 0 2px rgba(255,255,255,.6);}
+.note-color-picker{display:flex;flex-wrap:wrap;gap:8px;padding:6px 0 4px;}
+.note-color-dot{width:24px;height:24px;border-radius:50%;border:2.5px solid rgba(255,255,255,.3);cursor:pointer;outline:none;transition:all .12s;flex-shrink:0;box-shadow:0 2px 4px rgba(0,0,0,.15);}
+.note-color-dot:hover{transform:scale(1.15);border-color:rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.25);}
+.note-color-dot.active{border-color:rgba(255,255,255,.8);transform:scale(1.2);box-shadow:0 0 0 2px rgba(0,0,0,.2),0 0 0 4px rgba(255,255,255,.4);}
 /* note-card defined below in "Fixed-height sticky note cards" section */
-.note-fold{position:absolute;top:0;left:0;width:0;height:0;border-style:solid;border-width:18px 18px 0 0;border-color:rgba(0,0,0,.18) transparent transparent transparent;}
-.note-body{font-size:14px;line-height:1.75;color:var(--note-text);word-break:break-word;flex:1;padding-top:4px;}
-.note-footer{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(0,0,0,.12);gap:8px;margin-top:auto;flex-shrink:0;}
+.note-fold{position:absolute;top:0;left:0;width:0;height:0;border-style:solid;border-width:18px 18px 0 0;border-color:rgba(0,0,0,.18) transparent transparent transparent;z-index:1;}
+.note-footer{display:flex;align-items:center;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(0,0,0,.12);gap:8px;margin-top:auto;flex-shrink:0;min-height:32px;}
 .note-ts{font-size:10px;color:var(--note-text);opacity:.55;white-space:nowrap;}
-.note-actions{display:flex;gap:2px;}
-.note-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:none;border:none;cursor:pointer;color:var(--note-text);opacity:.5;transition:opacity .12s,background .12s;}
-.note-icon-btn:hover{opacity:1;background:rgba(0,0,0,.1);}
-.note-icon-btn.del-confirm{opacity:1;color:#ef4444;}
-.note-editor-card{grid-column:1/-1;clip-path:polygon(0 18px,18px 0,100% 0,100% 100%,0 100%);background:var(--note-bg,#334155);color:var(--note-text,#e2e8f0);border-radius:4px 14px 14px 14px;padding:14px 14px 12px;position:relative;box-shadow:2px 4px 14px rgba(0,0,0,.2);display:flex;flex-direction:column;gap:10px;}
-.tt-toolbar{display:flex;align-items:center;gap:2px;padding:4px 0 6px;border-bottom:1px solid rgba(0,0,0,.12);flex-wrap:wrap;}
-.tt-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:none;border:none;border-radius:5px;cursor:pointer;opacity:.55;transition:opacity .12s,background .12s;color:var(--note-text);}
-.tt-btn:hover{opacity:1;background:rgba(0,0,0,.1);}
-.tt-btn.tt-active{opacity:1;background:rgba(0,0,0,.18);}
-.tt-divider{width:1px;height:18px;margin:0 4px;background:rgba(0,0,0,.15);flex-shrink:0;}
-.tt-editor-content{min-height:100px;}
-.tt-editor-content .ProseMirror{outline:none;color:var(--note-text);font-size:14px;line-height:1.75;padding:6px 0;caret-color:var(--note-text);}
+.note-actions{display:flex;gap:4px;align-items:center;}
+.note-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:7px;background:none;border:none;cursor:pointer;color:var(--note-text);opacity:.55;transition:all .12s;min-height:32px;min-width:32px;}
+.note-icon-btn:hover{opacity:1;background:rgba(0,0,0,.12);}
+.note-icon-btn.del-confirm{opacity:1;color:#ef4444;background:rgba(239,68,68,.1);}
+.note-icon-btn:active{background:rgba(0,0,0,.18);}
+.note-editor-card{grid-column:1/-1;clip-path:polygon(0 18px,18px 0,100% 0,100% 100%,0 100%);background:var(--note-bg,#334155);color:var(--note-text,#e2e8f0);border-radius:4px 14px 14px 14px;padding:14px 14px 12px;position:relative;box-shadow:2px 4px 14px rgba(0,0,0,.2);display:flex;flex-direction:column;gap:10px;max-width:100%;min-height:280px;max-height:600px;overflow-y:auto;}
+.tt-toolbar{display:flex;align-items:center;gap:4px;padding:6px 0 8px;border-bottom:1px solid rgba(0,0,0,.12);flex-wrap:wrap;}
+.tt-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;background:none;border:none;border-radius:6px;cursor:pointer;opacity:.6;transition:all .12s;color:var(--note-text);min-height:32px;min-width:32px;}
+.tt-btn:hover{opacity:1;background:rgba(0,0,0,.08);}
+.tt-btn.tt-active{opacity:1;background:rgba(0,0,0,.18);color:var(--note-text);}
+.tt-divider{width:1px;height:20px;margin:0 4px;background:rgba(0,0,0,.15);flex-shrink:0;}
+.tt-editor-content{min-height:120px;max-height:350px;overflow-y:auto;padding-right:4px;}
+.tt-editor-content::-webkit-scrollbar{width:6px;}
+.tt-editor-content::-webkit-scrollbar-track{background:transparent;}
+.tt-editor-content::-webkit-scrollbar-thumb{background:rgba(0,0,0,.2);border-radius:3px;}
+.tt-editor-content::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.3);}
+.tt-editor-content .ProseMirror{outline:none;color:var(--note-text);font-size:14px;line-height:1.75;padding:6px 0;caret-color:var(--note-text);min-height:inherit;}
 .tt-editor-content .ProseMirror p.is-editor-empty:first-child::before{content:attr(data-placeholder);color:var(--note-text);opacity:.4;float:left;pointer-events:none;height:0;}
 .tt-editor-content .ProseMirror ul,.tt-editor-content .ProseMirror ol{padding-left:18px;}
 .tt-view{font-size:14px;line-height:1.75;color:var(--note-text);}
@@ -315,11 +319,11 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 .tt-view p{margin:0 0 4px;}
 .tt-view p:last-child{margin-bottom:0;}
 .tt-view strong{font-weight:600;} .tt-view em{font-style:italic;} .tt-view u{text-decoration:underline;} .tt-view s{text-decoration:line-through;}
-.editor-actions{display:flex;gap:8px;justify-content:flex-end;}
-.btn-note-cancel,.btn-note-save{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;background:rgba(0,0,0,.12);border:1px solid rgba(0,0,0,.18);color:var(--note-text);}
-.btn-note-cancel:hover{background:rgba(0,0,0,.2);}
-.btn-note-save{background:rgba(0,0,0,.2);font-weight:600;}
-.btn-note-save:hover:not(:disabled){background:rgba(0,0,0,.3);}
+.editor-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap-reverse;margin-top:6px;}
+.btn-note-cancel,.btn-note-save{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;background:rgba(0,0,0,.12);border:1px solid rgba(0,0,0,.18);color:var(--note-text);min-height:36px;}
+.btn-note-cancel:hover{background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.24);}
+.btn-note-save{background:rgba(0,0,0,.2);font-weight:600;border-color:rgba(0,0,0,.25);}
+.btn-note-save:hover:not(:disabled){background:rgba(0,0,0,.28);border-color:rgba(0,0,0,.32);}
 .btn-note-save:disabled{opacity:.4;cursor:not-allowed;}
 
 /* ── Add Task row ───────────────────────── */
@@ -370,17 +374,20 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 .qcat-dropdown{position:relative;left:0;top:calc(100% + 4px);z-index:50;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:4px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fadeIn .12s ease;}
 
 /* ── Fixed-height sticky note cards ──────────────────────── */
-.notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;align-items:start;}
+.notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;align-items:start;padding-bottom:12px;}
 .note-card{
   background:var(--note-bg,#334155);color:var(--note-text,#e2e8f0);
-  border-radius:4px 14px 14px 14px;padding:14px 14px 12px;
+  border-radius:4px 14px 14px 14px;padding:16px;
   position:relative;
   box-shadow:2px 4px 14px rgba(0,0,0,.2),0 1px 3px rgba(0,0,0,.1);
-  display:flex;flex-direction:column;gap:8px;
+  display:flex;flex-direction:column;gap:10px;
   clip-path:polygon(0 18px,18px 0,100% 0,100% 100%,0 100%);
-  transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .2s ease;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .2s ease,max-height .3s ease;
   cursor:default;
-  min-height:260px;
+  min-height:240px;
+  max-height:520px;
+  width:100%;
+  overflow:hidden;
 }
 .note-card:hover{
   transform:translateY(-4px) scale(1.01);
@@ -388,35 +395,43 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 }
 .note-fade{
   position:absolute;left:0;right:0;
-  height:60px;
-  background:linear-gradient(to bottom,transparent,var(--note-bg));
+  height:56px;
+  background:linear-gradient(to bottom,transparent 0%,var(--note-bg) 100%);
   pointer-events:none;
-  bottom:64px; /* above footer */
+  bottom:52px; /* above footer */
+  z-index:2;
 }
 .note-body{
   flex:1;
-  min-height:160px;
+  min-height:120px;
+  max-height:280px;
+  overflow:hidden;
+  position:relative;
+  word-wrap:break-word;
+  overflow-wrap:break-word;
 }
 .note-read-more{
   display:inline-flex;align-items:center;gap:5px;
-  background:none;border:none;cursor:pointer;
+  background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.12);cursor:pointer;
   font-size:12px;font-weight:600;font-family:'Inter',sans-serif;
-  opacity:.7;padding:2px 0;transition:opacity .15s;
-  align-self:flex-start;
+  opacity:.85;padding:4px 8px;transition:all .15s;border-radius:5px;
+  align-self:flex-start;color:var(--note-text);
 }
-.note-read-more:hover{opacity:1;}
+.note-read-more:hover{opacity:1;background:rgba(0,0,0,.14);border-color:rgba(0,0,0,.18);}
+.note-read-more:active{background:rgba(0,0,0,.18);}
 
 /* Note modal (full content) */
 .note-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .15s ease;}
 .note-modal{
   background:var(--note-bg,#334155);color:var(--note-text,#e2e8f0);
-  border-radius:16px;width:100%;max-width:560px;max-height:80vh;
+  border-radius:16px;width:100%;max-width:620px;max-height:85vh;
   display:flex;flex-direction:column;overflow:hidden;
   box-shadow:0 20px 60px rgba(0,0,0,.5);animation:slideUp .2s ease;
+  min-height:300px;
 }
-.note-modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.12);flex-shrink:0;}
-.note-modal-date{font-size:11px;opacity:.6;}
-.note-modal-body{flex:1;overflow-y:auto;padding:16px;font-size:15px;line-height:1.8;}
+.note-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(0,0,0,.12);flex-shrink:0;min-height:50px;}
+.note-modal-date{font-size:12px;opacity:.65;font-weight:500;}
+.note-modal-body{flex:1;overflow-y:auto;padding:20px;font-size:15px;line-height:1.8;}
 
 /* Notebook save button */
 /* (nb toolbar save button styles now in NOTEBOOK section below) */
@@ -989,14 +1004,27 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 
   /* ─── Notes grid ─────────────────────────── */
   .notes-grid {
-    grid-template-columns: 1fr 1fr; /* 2 columns on phone */
+    grid-template-columns: 1fr; /* Single column on mobile */
     gap: 12px;
   }
   .note-card {
-    min-height: 130px;
+    min-height: 200px;
+    max-height: 420px;
   }
-  .note-body { font-size: 13px; }
-  .note-editor-card { grid-column: 1 / -1; }
+  .note-body { 
+    font-size: 13px;
+    max-height: 240px;
+  }
+  .note-footer { min-height: 36px; }
+  .note-editor-card { 
+    grid-column: 1 / -1;
+    min-height: 240px;
+    max-height: 480px;
+  }
+  .tt-editor-content {
+    min-height: 100px;
+    max-height: 280px;
+  }
 
   /* ─── Notebook mobile ────────────────────── */
   .nb-layout {
@@ -1161,8 +1189,36 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
   .mobile-top-header { display: none; }
   .mobile-bottom-nav { display: none; }
   .mobile-ham        { display: none; }
+  
+  /* ─── Notes grid tablet ──────────────────── */
+  .notes-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .note-card {
+    min-height: 260px;
+    max-height: 520px;
+  }
+  .note-body { 
+    max-height: 300px;
+  }
 }
 
+/* ── Desktop (min-width: 1025px) ────────────────────── */
+@media (min-width: 1025px) {
+  /* ─── Notes grid desktop ─────────────────── */
+  .notes-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+  }
+  .note-card {
+    min-height: 280px;
+    max-height: 540px;
+  }
+  .note-body {
+    max-height: 320px;
+  }
+}
 
 
 /* ═══════════════════════════════════════════
