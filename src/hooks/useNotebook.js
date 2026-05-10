@@ -14,6 +14,20 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 
+async function addDocRetry(colRef, data, retries = 2) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await addDoc(colRef, data);
+    } catch (e) {
+      lastError = e;
+      if (e?.code !== "already-exists" || attempt === retries) throw e;
+    }
+  }
+  throw lastError;
+}
+
 /* ════════════════════════════════════════════════════
    NOTEBOOKS
    ════════════════════════════════════════════════════ */
@@ -44,7 +58,7 @@ export function useNotebooks() {
    */
   const createNotebook = async (notebookName, color) => {
     // 1. Create notebook
-    const nbRef = await addDoc(collection(db, "notebooks"), {
+    const nbRef = await addDocRetry(collection(db, "notebooks"), {
       notebookName: notebookName.trim(),
       color:        color || "#6366f1",
       uid:          user.uid,
@@ -52,7 +66,7 @@ export function useNotebooks() {
     });
 
     // 2. Create default section
-    const secRef = await addDoc(collection(db, "nb_sections"), {
+    const secRef = await addDocRetry(collection(db, "nb_sections"), {
       sectionName: "Section 1",
       color:       color || "#6366f1",
       notebookId:  nbRef.id,
@@ -61,7 +75,7 @@ export function useNotebooks() {
     });
 
     // 3. Create default page
-    const pageRef = await addDoc(collection(db, "nb_pages"), {
+    const pageRef = await addDocRetry(collection(db, "nb_pages"), {
       pageName:    "Page 1",
       htmlContent: "",
       textContent: "",
@@ -113,7 +127,7 @@ export function useSections(notebookId) {
    * Create section + default page inside it
    */
   const createSection = async (sectionName, color) => {
-    const secRef = await addDoc(collection(db, "nb_sections"), {
+    const secRef = await addDocRetry(collection(db, "nb_sections"), {
       sectionName: sectionName.trim(),
       color:       color || "#6366f1",
       notebookId,
@@ -121,7 +135,7 @@ export function useSections(notebookId) {
       createdAt:   serverTimestamp(),
     });
 
-    await addDoc(collection(db, "nb_pages"), {
+    await addDocRetry(collection(db, "nb_pages"), {
       pageName:    "Page 1",
       htmlContent: "",
       textContent: "",
