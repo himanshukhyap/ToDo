@@ -265,11 +265,19 @@ function PagesPanel({ section, notebookId, activePage, setActivePage, uid, showT
   const [editId, setEditId] = useState(null);
   const [deleting, setDeleting] = useState(null);
 
+  // When section changes, always reset to first page
   useEffect(() => {
-    if (pages.length > 0 && (!activePage || !pages.find((p) => p.id === activePage.id))) {
+    if (pages.length > 0) {
       setActivePage(pages[0]);
     }
-  }, [pages.length, section?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [section?.id, pages, setActivePage]); // Depend on section change and pages list
+
+  // When pages change but section stays same, validate active page
+  useEffect(() => {
+    if (pages.length > 0 && activePage && !pages.find((p) => p.id === activePage.id)) {
+      setActivePage(pages[0]);
+    }
+  }, [pages, activePage, setActivePage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddPage = async () => {
     try {
@@ -450,7 +458,7 @@ function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage
     if (sections.length > 0 && (!activeSection || !sections.find((s) => s.id === activeSection.id))) {
       setActiveSection(sections[0]);
     }
-  }, [sections.length, notebook?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sections, activeSection, setActiveSection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddSection = async () => {
     if (!newSecName.trim()) return;
