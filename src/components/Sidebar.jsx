@@ -78,7 +78,7 @@ function SbGroup({ label, icon, children, defaultOpen = true }) {
 /* ── Main Sidebar ─────────────────────────────── */
 export default function Sidebar({
   active, setActive, activeCat, setActiveCat,
-  activeNotebook, setActiveNotebook, isAdmin, collapsed, setCollapsed
+  activeNotebook, setActiveNotebook, isAdmin, allowCollapse = true, collapsed, setCollapsed
 }) {
   const { user, logout, sessionTimeoutMs }  = useAuth();
   const { theme, toggle } = useTheme();
@@ -149,7 +149,7 @@ export default function Sidebar({
   };
 
   /* ── Collapsed sidebar ─────────────────────── */
-  if (collapsed) return (
+  if (collapsed && allowCollapse) return (
     <aside className="sidebar sidebar-collapsed">
       <button className="sb-collapse-btn" onClick={() => setCollapsed(false)} title="Expand sidebar">
         <Menu size={18}/>
@@ -179,9 +179,11 @@ export default function Sidebar({
       <div className="sb-brand">
         <div className="brand-icon sm">NT</div>
         <span className="sb-brand-name">NoteTask</span>
-        <button className="sb-collapse-btn ml-auto" onClick={() => setCollapsed(true)} title="Collapse">
-          <PanelLeftClose size={16}/>
-        </button>
+        {allowCollapse && (
+          <button className="sb-collapse-btn ml-auto" onClick={() => setCollapsed(true)} title="Collapse">
+            <PanelLeftClose size={16}/>
+          </button>
+        )}
       </div>
 
       <nav className="sb-nav">
