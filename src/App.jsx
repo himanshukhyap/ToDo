@@ -9,6 +9,7 @@ import Notebook from "./components/Notebook";
 import AdminPanel from "./components/AdminPanel";
 import Trash from "./components/Trash";
 import OfflineBanner from "./components/OfflineBanner";
+import { useNotebooks } from "./hooks/useNotebook";
 import { CheckSquare, StickyNote, BookOpen, Shield, Menu, Trash2 } from "lucide-react";
 
 /* ── Mobile Bottom Nav ───────────────────────────────── */
@@ -60,6 +61,7 @@ function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
 /* ── Main App ────────────────────────────────────────── */
 function AppInner() {
   const { user, loading, isAdmin } = useAuth();
+  const { notebooks } = useNotebooks();
   const [active,           setActive]           = useState("tasks");
   const [activeCat,        setActiveCat]        = useState(null);
   const [activeNotebook,   setActiveNotebook]   = useState(null);
@@ -69,6 +71,26 @@ function AppInner() {
   useEffect(() => {
     if (!isAdmin && active === "admin") setActive("tasks");
   }, [active, isAdmin]);
+
+  useEffect(() => {
+    if (active !== "notebook") return;
+
+    const selectedNotebook = activeNotebook
+      ? notebooks.find((nb) => nb.id === activeNotebook.id)
+      : null;
+
+    if (!selectedNotebook) {
+      setActiveNotebook(notebooks[0] || null);
+      return;
+    }
+
+    if (
+      selectedNotebook.notebookName !== activeNotebook?.notebookName ||
+      selectedNotebook.color !== activeNotebook?.color
+    ) {
+      setActiveNotebook(selectedNotebook);
+    }
+  }, [active, activeNotebook, notebooks]);
 
   if (loading) return (
     <div className="splash">
