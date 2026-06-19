@@ -367,11 +367,11 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 .cat-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:99px;white-space:nowrap;}
 .subtask-count{font-size:11px;color:var(--text3);}
 .task-edit-inline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-.qcat-wrap{position:relative;}
+.qcat-wrap{position:relative;z-index:60;}
 .qcat-btn{display:inline-flex;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:0;color:var(--text3);font-family:'Inter',sans-serif;font-size:12px;}
 .qcat-btn:hover{color:var(--text2);}
 .qcat-placeholder{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);background:var(--surface2);border:1px dashed var(--border2);padding:2px 8px;border-radius:99px;}
-.qcat-dropdown{position:relative;left:0;top:calc(100% + 4px);z-index:50;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:4px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fadeIn .12s ease;}
+.qcat-dropdown{position:absolute;left:0;top:calc(100% + 4px);z-index:400;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:4px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:fadeIn .12s ease;}
 
 /* ── Fixed-height sticky note cards ──────────────────────── */
 .notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;align-items:start;padding-bottom:12px;}
@@ -1088,6 +1088,23 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
 
   /* Category chips */
   .cat-filter-bar { gap: 8px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+
+  /* Quick Category Picker on mobile */
+  .task-card { position: relative; }
+  .qcat-wrap { flex-shrink: 0; position: relative; z-index: 60; }
+  .qcat-btn { font-size: 13px; padding: 6px 8px; }
+  .qcat-dropdown {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 70px;
+    max-height: 50vh;
+    overflow-y: auto;
+    z-index: 500;
+    transform: none;
+    min-width: auto;
+  }
   .cat-filter-btn { flex-shrink: 0; padding: 6px 14px; font-size: 13px; }
 
   /* Progress */
@@ -1350,6 +1367,23 @@ body{background:radial-gradient(circle at top left, rgba(99,102,241,.14), transp
   @keyframes slideUpModal {
     from { transform: translateY(100%); opacity: 0; }
     to   { transform: translateY(0);   opacity: 1; }
+  }
+
+  /* ─── Category modal mobile fixes ────────── */
+  .cat-add-row {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 14px 8px;
+  }
+  .cat-add-row .input-sm {
+    flex: 1;
+    min-width: 180px;
+  }
+  .cat-add-row .btn-primary {
+    white-space: nowrap;
+  }
+  .color-row-sm {
+    padding: 0 14px;
   }
 
   /* ─── SweetAlert2 on mobile ──────────────── */
