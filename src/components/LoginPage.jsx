@@ -21,7 +21,7 @@ const GoogleIcon = () => (
 );
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithMicrosoft, signUpEmail, signInEmail } = useAuth();
+  const { signInWithGoogle, signInWithMicrosoft, signUpEmail, signInEmail, resetPasswordEmail } = useAuth();
   const [mode, setMode]       = useState("login"); // login | register
   const [name, setName]       = useState("");
   const [email, setEmail]     = useState("");
@@ -29,6 +29,7 @@ export default function LoginPage() {
   const [showPw, setShowPw]   = useState(false);
   const [loading, setLoading] = useState(null);
   const [error, setError]     = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
@@ -39,9 +40,11 @@ export default function LoginPage() {
   }, []);
 
   const wrap = async (key, fn) => {
-    setLoading(key); setError("");
-    try { await fn(); }
-    catch (e) {
+    setLoading(key); setError(""); setSuccessMessage("");
+    try {
+      await fn();
+      return true;
+    } catch (e) {
       const msg = {
         "auth/email-already-in-use": "Email already registered. Try signing in.",
         "auth/user-not-found": "No account found with this email.",
@@ -50,8 +53,10 @@ export default function LoginPage() {
         "auth/invalid-email": "Please enter a valid email address.",
         "auth/popup-closed-by-user": "",
         "auth/cancelled-popup-request": "",
+        "auth/user-disabled": "This account has been disabled.",
       }[e.code] || e.message;
       if (msg) setError(msg);
+      return false;
     } finally { setLoading(null); }
   };
 
@@ -61,6 +66,12 @@ export default function LoginPage() {
     wrap("email", () =>
       mode === "register" ? signUpEmail(email, password, name) : signInEmail(email, password)
     );
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) return setError("Enter your email to reset password.");
+    const success = await wrap("reset", () => resetPasswordEmail(email));
+    if (success) setSuccessMessage("Password reset email sent. Check your inbox.");
   };
 
   return (
@@ -83,6 +94,11 @@ export default function LoginPage() {
         {error && (
           <div className="login-error">
             <AlertCircle size={14}/> {error}
+          </div>
+        )}
+        {successMessage && (
+          <div className="login-success">
+            {successMessage}
           </div>
         )}
         {sessionExpired && (
@@ -111,6 +127,11 @@ export default function LoginPage() {
               onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleEmail()} />
             <button className="pw-toggle" onClick={() => setShowPw(!showPw)} type="button">
               {showPw ? <EyeOff size={14}/> : <Eye size={14}/>}
+            </button>
+          </div>
+          <div className="login-actions-row">
+            <button className="btn-link" onClick={handleForgotPassword} type="button" disabled={loading === "reset"}>
+              Forgot password?
             </button>
           </div>
           <button className="btn-email" onClick={handleEmail} disabled={loading === "email"}>

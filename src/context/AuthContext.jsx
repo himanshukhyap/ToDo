@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   onAuthStateChanged, signInWithPopup, signOut,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  updateProfile, OAuthProvider,
+  sendPasswordResetEmail, updateProfile, OAuthProvider,
 } from "firebase/auth";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, auth, googleProvider } from "../firebase";
@@ -180,6 +180,7 @@ export function AuthProvider({ children }) {
   };
 
   const signInEmail = (email, password) => signInWithEmailAndPassword(auth, email, password);
+  const resetPasswordEmail = (email) => sendPasswordResetEmail(auth, email);
   const logout = async () => {
     sessionStorage.removeItem("sessionExpiredAt");
     clearTimeout(timeoutRef.current);
@@ -222,6 +223,7 @@ export function AuthProvider({ children }) {
       signInWithMicrosoft,
       signUpEmail,
       signInEmail,
+      resetPasswordEmail,
       logout,
     }}>
       {children}
