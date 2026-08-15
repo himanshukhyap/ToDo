@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTasks } from "../hooks/useTasks";
 import { useCategories } from "../hooks/useCategories";
 import { confirmBulkDelete, confirmDelete, errorAlert, toast } from "../utils/swal";
@@ -6,7 +6,7 @@ import { TasksSkeleton } from "./Loader";
 import {
   CheckSquare, Plus, Check, X,
   Pencil, Trash2, Copy, ChevronDown, ChevronUp,
-  Tag, Circle, CheckCircle2, Folder, Share2, Clock,
+  Circle, CheckCircle2, Folder, Share2, Clock,
 } from "lucide-react";
 import CategoryManager from "./CategoryManager";
 
@@ -56,12 +56,10 @@ function QuickCatPicker({ categories, current, onSelect, onManage }) {
 
   return (
     <div className="qcat-wrap">
-      <button className="qcat-btn" onClick={() => setOpen(!open)} title="Change category">
-        {cat
-          ? <span className="cat-pill" style={{ background: cat.color+"22", color: cat.color }}><Tag size={10}/>{cat.name}</span>
-          : <span className="qcat-placeholder"><Tag size={11}/> Category</span>
-        }
-        <ChevronDown size={11}/>
+      <button className="qcat-stripe-btn" onClick={() => setOpen(!open)} title="Change category">
+        <span className="cat-stripe" style={{ background: cat?.color || "var(--text3)" }}/>
+        <span className="qcat-label">{cat ? cat.name : "No category"}</span>
+        <ChevronDown size={10}/>
       </button>
       {open && (
         <div className="qcat-dropdown">
@@ -270,6 +268,174 @@ function TaskList({ tasks, categories, emptyMsg, handlers, onManageCat }) {
   ));
 }
 
+/* ── Mobile task row — swipe to edit/delete ─────────────── */
+const SWIPE_ACTIONS_WIDTH = 128;
+
+function MobileTaskCard({ task, categories, onToggle, onUpdate, onDelete,
+  onAddSubtask, onEditSubtask, onToggleSubtask, onDeleteSubtask }) {
+  const [expanded,  setExpanded]  = useState(false);
+  const [editing,   setEditing]   = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
+  const [editCat,   setEditCat]   = useState(task.categoryId || "");
+  const [newSub,    setNewSub]    = useState("");
+  const [addingSub, setAddingSub] = useState(false);
+  const [copied,    setCopied]    = useState(false);
+  const [shared,    setShared]    = useState(false);
+  const [dragX,     setDragX]     = useState(0);
+  const [open,      setOpen]      = useState(false);
+  const [dragging,  setDragging]  = useState(false);
+  const startXRef = useRef(0);
+
+  const cat = categories.find(c => c.id === task.categoryId);
+  const subtasks = task.subtasks || [];
+  const doneCount = subtasks.filter(s => s.completed).length;
+
+  const closeSwipe = () => { setOpen(false); setDragX(0); };
+
+  const handlePointerDown = (e) => {
+    if (editing) return;
+    startXRef.current = e.clientX;
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const handlePointerMove = (e) => {
+    if (!dragging) return;
+    const base = open ? -SWIPE_ACTIONS_WIDTH : 0;
+    const next = Math.min(0, Math.max(-SWIPE_ACTIONS_WIDTH, base + (e.clientX - startXRef.current)));
+    setDragX(next);
+  };
+  const handlePointerUp = () => {
+    if (!dragging) return;
+    setDragging(false);
+    const shouldOpen = dragX < -SWIPE_ACTIONS_WIDTH / 2;
+    setOpen(shouldOpen);
+    setDragX(shouldOpen ? -SWIPE_ACTIONS_WIDTH : 0);
+  };
+
+  const saveEdit = () => {
+    if (!editTitle.trim()) return;
+    onUpdate(task.id, { title: editTitle.trim(), categoryId: editCat || null });
+    setEditing(false);
+  };
+  const addSub = () => {
+    if (!newSub.trim()) return;
+    onAddSubtask(task.id, newSub);
+    setNewSub(""); setAddingSub(false);
+  };
+
+  const getShareText = () => {
+    const s = task.completed ? "✅" : "⬜";
+    const lines = [`${s} *${task.title}*`];
+    if (subtasks.length) { lines.push(""); subtasks.forEach(s => lines.push(`  ${s.completed?"✅":"⬜"} ${s.text}`)); }
+    return lines.join("\n");
+  };
+  const handleCopy = () => { navigator.clipboard.writeText(getShareText()); setCopied(true); setTimeout(()=>setCopied(false),2000); };
+  const handleShare = async () => {
+    const r = await shareContent(task.title, getShareText());
+    if (r==="copied"||r==="shared") { setShared(true); setTimeout(()=>setShared(false),2000); }
+  };
+  const handleDelete = async () => {
+    const ok = await confirmDelete(`task "${task.title}"`);
+    if (!ok) return;
+    closeSwipe();
+    try {
+      await onDelete(task.id);
+    } catch (e) {
+      errorAlert(`Could not delete task: ${e.message}\n\nMake sure Firestore rules are deployed.`);
+    }
+  };
+
+  return (
+    <div className="mtask-row">
+      <div className="mtask-swipe-actions">
+        <button className="mtask-swipe-btn edit" onClick={() => { setEditing(true); closeSwipe(); }}>
+          <Pencil size={15}/> Edit
+        </button>
+        <button className="mtask-swipe-btn del" onClick={handleDelete}>
+          <Trash2 size={15}/> Delete
+        </button>
+      </div>
+
+      <div
+        className={`mtask-content ${dragging ? "dragging" : ""}`}
+        style={{ transform: `translateX(${dragX}px)` }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        {editing ? (
+          <div className="task-edit-inline mtask-edit">
+            <input className="input-sm flex1" value={editTitle} autoFocus
+              onChange={e => setEditTitle(e.target.value)}
+              onKeyDown={e => { if(e.key==="Enter") saveEdit(); if(e.key==="Escape") setEditing(false); }}/>
+            <select className="input-sm cat-select" value={editCat} onChange={e => setEditCat(e.target.value)}>
+              <option value="">No category</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button className="icon-btn" onClick={() => setEditing(false)}><X size={13}/></button>
+            <button className="icon-btn green" onClick={saveEdit}><Check size={13}/></button>
+          </div>
+        ) : (
+          <div className="mtask-main" role="button" tabIndex={0}
+            onClick={() => open ? closeSwipe() : setExpanded(e => !e)}
+            onKeyDown={e => { if (e.key==="Enter"||e.key===" ") { e.preventDefault(); open ? closeSwipe() : setExpanded(x=>!x); } }}>
+            <button className="task-check" onClick={(e) => { e.stopPropagation(); onToggle(task.id, task.completed); }}>
+              {task.completed ? <CheckCircle2 size={19}/> : <Circle size={19}/>}
+            </button>
+            <span className="cat-stripe" style={{ background: cat?.color || "var(--text3)" }}/>
+            <span className="mtask-body">
+              <span className={`mtask-title ${task.completed ? "done" : ""}`}>{task.title}</span>
+              <span className="mtask-meta">
+                {cat ? cat.name : "No category"}
+                {subtasks.length > 0 && <> · {doneCount}/{subtasks.length} subtasks</>}
+              </span>
+            </span>
+            {expanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+          </div>
+        )}
+      </div>
+
+      {expanded && !editing && (
+        <div className="subtask-area">
+          <div className="mtask-quickrow">
+            <button className="mtask-quick-btn" onClick={handleShare}>
+              {shared ? <Check size={13}/> : <Share2 size={13}/>} Share
+            </button>
+            <button className="mtask-quick-btn" onClick={handleCopy}>
+              {copied ? <Check size={13}/> : <Copy size={13}/>} Copy
+            </button>
+          </div>
+          {subtasks.map(sub => (
+            <SubtaskRow key={sub.id} subtask={sub} taskId={task.id} task={task}
+              onToggle={onToggleSubtask} onEdit={onEditSubtask} onDelete={onDeleteSubtask}/>
+          ))}
+          {addingSub ? (
+            <div className="subtask-add-row">
+              <input className="input-sm flex1" placeholder="Subtask…" value={newSub} autoFocus
+                onChange={e => setNewSub(e.target.value)}
+                onKeyDown={e => { if(e.key==="Enter") addSub(); if(e.key==="Escape") setAddingSub(false); }}/>
+              <button className="icon-btn" onClick={() => setAddingSub(false)}><X size={12}/></button>
+              <button className="icon-btn green" onClick={addSub}><Check size={12}/></button>
+            </div>
+          ) : (
+            <button className="add-subtask-btn" onClick={() => setAddingSub(true)}>
+              <Plus size={13}/> Add subtask
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileTaskList({ tasks, categories, emptyMsg, handlers }) {
+  if (tasks.length === 0) return <div className="empty-sm">{emptyMsg}</div>;
+  return tasks.map(t => (
+    <MobileTaskCard key={t.id} task={t} categories={categories} {...handlers}/>
+  ));
+}
+
 /* ── Main Tasks panel ───────────────────────────────────── */
 export default function Tasks({ filterCat: externalCat }) {
   const { tasks, loading, error, addTask, updateTask, deleteTask, toggleTask,
@@ -394,14 +560,13 @@ export default function Tasks({ filterCat: externalCat }) {
           </div>
 
           <div className="tasks-desktop">
-            <DesktopSection title="Pending" icon={<Clock size={14}/>} tasks={pending}
+            <TaskColumn title="Pending" icon={<Clock size={14}/>} tasks={pending}
               categories={categories} handlers={handlers} onManageCat={() => setShowCatMgr(true)}
-              emptyMsg={isSearching?`No pending tasks match "${search}"`:"Nothing pending 🎉"}
-              defaultOpen={true} forceOpen={isSearching}/>
-            <DesktopSection title="Completed" icon={<CheckCircle2 size={14}/>} tasks={completed}
+              emptyMsg={isSearching?`No pending tasks match "${search}"`:"Nothing pending 🎉"}/>
+            <TaskColumn title="Completed" icon={<CheckCircle2 size={14}/>} tasks={completed}
               categories={categories} handlers={handlers} onManageCat={() => setShowCatMgr(true)}
               emptyMsg={isSearching?`No completed tasks match "${search}"`:"No completed tasks."}
-              defaultOpen={false} forceOpen={isSearching && completed.length > 0}/>
+              muted/>
           </div>
 
           <div className="tasks-mobile">
@@ -414,13 +579,13 @@ export default function Tasks({ filterCat: externalCat }) {
               </button>
             </div>
             <div className="mobile-task-body">
-              <TaskList
+              <MobileTaskList
                 tasks={(isSearching?activeMobileTab:mobileTab)==="pending"?pending:completed}
                 categories={categories}
                 emptyMsg={(isSearching?activeMobileTab:mobileTab)==="pending"
                   ?(isSearching?`No pending tasks match "${search}"`:"Nothing pending 🎉")
                   :(isSearching?`No completed tasks match "${search}"`:"No completed tasks.")}
-                handlers={handlers} onManageCat={()=>setShowCatMgr(true)}
+                handlers={handlers}
               />
             </div>
           </div>
@@ -431,22 +596,18 @@ export default function Tasks({ filterCat: externalCat }) {
   );
 }
 
-/* ── Desktop collapsible section ────────────────────────── */
-function DesktopSection({ title, icon, tasks, categories, handlers, onManageCat, emptyMsg, defaultOpen, forceOpen }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const isOpen = forceOpen || open;
+/* ── Desktop task column ─────────────────────────────────── */
+function TaskColumn({ title, icon, tasks, categories, handlers, onManageCat, emptyMsg, muted }) {
   return (
-    <div className="task-section">
-      <button className="section-toggle" onClick={() => setOpen(!open)}>
-        <span className="section-toggle-left">{icon}<span>{title}</span><span className="badge sm">{tasks.length}</span></span>
-        {isOpen ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
-      </button>
-      {isOpen && (
-        <div className="section-body">
-          <TaskList tasks={tasks} categories={categories} emptyMsg={emptyMsg}
-            handlers={handlers} onManageCat={onManageCat}/>
-        </div>
-      )}
+    <div className={`task-column ${muted ? "muted" : ""}`}>
+      <div className="task-column-head">
+        <span className="task-column-head-left">{icon}<span>{title}</span></span>
+        <span className="badge sm">{tasks.length}</span>
+      </div>
+      <div className="task-column-body">
+        <TaskList tasks={tasks} categories={categories} emptyMsg={emptyMsg}
+          handlers={handlers} onManageCat={onManageCat}/>
+      </div>
     </div>
   );
 }

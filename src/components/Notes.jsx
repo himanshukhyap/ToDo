@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNotes } from "../hooks/useNotes";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -9,7 +9,7 @@ import { NotesSkeleton } from "./Loader";
 import {
   Plus, Pencil, Trash2, Copy, Check, X, FileText, Share2,
   Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
-  Strikethrough, Eye,
+  Strikethrough, Eye, ChevronDown,
 } from "lucide-react";
 
 async function shareContent(title, text) {
@@ -40,30 +40,66 @@ function getColorCfg(bg) {
   return NOTE_COLORS.find(c => c.bg === bg) || NOTE_COLORS[10];
 }
 
+/* ── Named colour-swatch picker ─────────────────────────── */
+function ColorSwatchPicker({ color, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const cfg = getColorCfg(color);
+
+  return (
+    <div className="ne-swatch-wrap" ref={ref}>
+      <button type="button" className="ne-swatch-btn" onClick={() => setOpen(o => !o)}>
+        <span className="ne-swatch-dot" style={{ background: color }}/>
+        {cfg.label}
+        <ChevronDown size={12}/>
+      </button>
+      {open && (
+        <div className="ne-swatch-dropdown">
+          {NOTE_COLORS.map(c => (
+            <button key={c.bg} type="button"
+              className={`ne-swatch-item ${color === c.bg ? "active" : ""}`}
+              onClick={() => { onChange(c.bg); setOpen(false); }}>
+              <span className="ne-swatch-dot" style={{ background: c.bg }}/>
+              {c.label}
+              {color === c.bg && <Check size={12} style={{ marginLeft: "auto" }}/>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Toolbar ─────────────────────────────────────────── */
-function EditorToolbar({ editor, textColor }) {
+function EditorToolbar({ editor }) {
   if (!editor) return null;
   const btn = (active, action, icon, title) => (
     <button type="button"
       className={`tt-btn ${active ? "tt-active" : ""}`}
-      style={{ color: textColor }}
       onMouseDown={e => { e.preventDefault(); action(); }}
       title={title}>{icon}</button>
   );
   return (
-    <div className="tt-toolbar" style={{ borderColor: textColor + "20" }}>
+    <div className="tt-toolbar">
       {btn(editor.isActive("bold"),        () => editor.chain().focus().toggleBold().run(),         <Bold size={13}/>,          "Bold")}
       {btn(editor.isActive("italic"),      () => editor.chain().focus().toggleItalic().run(),       <Italic size={13}/>,        "Italic")}
       {btn(editor.isActive("underline"),   () => editor.chain().focus().toggleUnderline().run(),   <UnderlineIcon size={13}/>, "Underline")}
       {btn(editor.isActive("strike"),      () => editor.chain().focus().toggleStrike().run(),      <Strikethrough size={13}/>,"Strike")}
-      <div className="tt-divider" style={{ background: textColor + "20" }}/>
+      <div className="tt-divider"/>
       {btn(editor.isActive("bulletList"),  () => editor.chain().focus().toggleBulletList().run(),  <List size={13}/>,          "Bullet")}
       {btn(editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run(), <ListOrdered size={13}/>,   "Numbered")}
     </div>
   );
 }
 
-/* ── Note Editor ─────────────────────────────────────── */
+/* ── Note Editor (content of the side/full-screen panel) ── */
 function NoteEditor({ note, onSave, onCancel }) {
   const [color, setColor] = useState(note?.color || NOTE_COLORS[0].bg);
   const cfg = getColorCfg(color);
@@ -86,7 +122,6 @@ function NoteEditor({ note, onSave, onCancel }) {
     onSave(html, text, color);
   };
 
-  // Ctrl+S to save
   useEffect(() => {
     const fn = e => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); handleSave(); } };
     window.addEventListener("keydown", fn);
@@ -94,21 +129,38 @@ function NoteEditor({ note, onSave, onCancel }) {
   }, [handleSave]);
 
   return (
-    <div className="note-editor-card" style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>
-      <div className="note-fold"/>
-      <EditorToolbar editor={editor} textColor={cfg.text}/>
-      <EditorContent editor={editor} className="tt-editor-content"/>
-      <div className="note-color-picker">
-        {NOTE_COLORS.map(c => (
-          <button key={c.bg} type="button"
-            className={`note-color-dot ${color === c.bg ? "active" : ""}`}
-            style={{ background: c.bg }}
-            onClick={() => setColor(c.bg)} title={c.label}/>
-        ))}
+    <>
+      <div className="ne-panel-head">
+        <span className="ne-panel-title">{note ? "Edit note" : "New note"}</span>
+        <button className="icon-btn" onClick={onCancel} title="Close"><X size={16}/></button>
+      </div>
+      <div className="ne-panel-body">
+        <ColorSwatchPicker color={color} onChange={setColor}/>
+        <div className="ne-write-surface" style={{ "--note-bg": color, "--note-text": cfg.text }}>
+          <EditorToolbar editor={editor}/>
+          <EditorContent editor={editor} className="tt-editor-content"/>
+        </div>
       </div>
       <div className="editor-actions">
         <button className="btn-note-cancel" onClick={onCancel}><X size={14}/> Cancel</button>
         <button className="btn-note-save" onClick={handleSave}><Check size={14}/> {note ? "Update" : "Save"}</button>
+      </div>
+    </>
+  );
+}
+
+/* ── Editor overlay — side panel on desktop, full-screen on mobile ── */
+function NoteEditorOverlay({ note, onSave, onCancel }) {
+  useEffect(() => {
+    const fn = e => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [onCancel]);
+
+  return (
+    <div className="ne-overlay" onClick={e => e.target === e.currentTarget && onCancel()}>
+      <div className="ne-panel">
+        <NoteEditor note={note} onSave={onSave} onCancel={onCancel}/>
       </div>
     </div>
   );
@@ -141,7 +193,7 @@ function NoteModal({ note, onClose, onEdit }) {
 }
 
 /* ── Note Card ───────────────────────────────────────── */
-const PREVIEW_HEIGHT = 160;
+const PREVIEW_HEIGHT = 260;
 
 function NoteCard({ note, onEdit, onDelete, onOpen }) {
   const [copied, setCopied]     = useState(false);
@@ -176,15 +228,12 @@ function NoteCard({ note, onEdit, onDelete, onOpen }) {
     ? note.updatedAt.toDate().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "";
 
   return (
-    <div className="note-card"
-      style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>
-      <div className="note-fold"/>
-
+    <div className="note-card" style={{ "--note-bg": cfg.bg, "--note-text": cfg.text }}>
       {/* Content with overflow detection */}
       <div
         ref={contentRef}
         className="note-body tt-view"
-        style={{ maxHeight: `${PREVIEW_HEIGHT}px`, overflow: "hidden", position: "relative" }}
+        style={{ maxHeight: `${PREVIEW_HEIGHT}px`, overflow: "hidden" }}
         dangerouslySetInnerHTML={{ __html: note.htmlContent || `<p>${note.content||""}</p>` }}
       />
 
@@ -193,8 +242,7 @@ function NoteCard({ note, onEdit, onDelete, onOpen }) {
 
       {/* Read more */}
       {overflow && (
-        <button className="note-read-more" onClick={() => onOpen(note)}
-          style={{ color: cfg.text }}>
+        <button className="note-read-more" onClick={() => onOpen(note)}>
           <Eye size={12}/> Read more
         </button>
       )}
@@ -223,23 +271,26 @@ function NoteCard({ note, onEdit, onDelete, onOpen }) {
 /* ── Main Notes panel ────────────────────────────────── */
 export default function Notes() {
   const { notes, loading, error, addNote, updateNote, deleteNote } = useNotes();
-  const [adding, setAdding]       = useState(false);
-  const [editingNote, setEditing] = useState(null);
-  const [search, setSearch]       = useState("");
+  const [adding, setAdding]         = useState(false);
+  const [editingNote, setEditing]   = useState(null);
+  const [search, setSearch]         = useState("");
   const [activeNote, setActiveNote] = useState(null);
 
   const filtered = notes.filter(n =>
     (n.textContent || n.content || "").toLowerCase().includes(search.toLowerCase())
   );
 
+  const openNew  = () => { setEditing(null); setAdding(true); };
+  const openEdit = (note) => { setAdding(false); setEditing(note); };
+  const closeEditor = () => { setAdding(false); setEditing(null); };
+
   const handleSave = async (html, text, color) => {
     if (editingNote) {
       await updateNote(editingNote.id, html, text, color);
-      setEditing(null);
     } else {
       await addNote(html, text, color);
-      setAdding(false);
     }
+    closeEditor();
   };
 
   return (
@@ -252,44 +303,39 @@ export default function Notes() {
         <div className="panel-header-right">
           <input className="search-input" placeholder="Search notes…" value={search}
             onChange={e => setSearch(e.target.value)}/>
-          {!adding && !editingNote && (
-            <button className="btn-primary" onClick={() => setAdding(true)}>
-              <Plus size={15}/> New Note
-            </button>
-          )}
+          <button className="btn-primary" onClick={openNew}>
+            <Plus size={15}/> New Note
+          </button>
         </div>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
 
-      {adding && <NoteEditor onSave={handleSave} onCancel={() => setAdding(false)}/>}
-
       {loading ? (
         <NotesSkeleton/>
-      ) : filtered.length === 0 && !adding ? (
+      ) : filtered.length === 0 ? (
         <div className="empty-state">
           <FileText size={40} strokeWidth={1}/>
           <p>{search ? "No notes match your search." : "No notes yet. Click 'New Note' to start."}</p>
         </div>
       ) : (
         <div className="notes-grid">
-          {filtered.map(note =>
-            editingNote?.id === note.id ? (
-              <NoteEditor key={note.id} note={note}
-                onSave={handleSave} onCancel={() => setEditing(null)}/>
-            ) : (
-              <NoteCard key={note.id} note={note}
-                onEdit={setEditing} onDelete={deleteNote} onOpen={setActiveNote}/>
-            )
-          )}
+          {filtered.map(note => (
+            <NoteCard key={note.id} note={note}
+              onEdit={openEdit} onDelete={deleteNote} onOpen={setActiveNote}/>
+          ))}
         </div>
+      )}
+
+      {(adding || editingNote) && (
+        <NoteEditorOverlay note={editingNote} onSave={handleSave} onCancel={closeEditor}/>
       )}
 
       {activeNote && (
         <NoteModal
           note={activeNote}
           onClose={() => setActiveNote(null)}
-          onEdit={setEditing}
+          onEdit={openEdit}
         />
       )}
     </div>
