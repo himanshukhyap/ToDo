@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import {
+  BrowserRouter, Routes, Route, Navigate, Outlet,
+  useLocation, useNavigate, useParams, matchPath,
+} from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import LoginPage from "./components/LoginPage";
@@ -10,14 +14,24 @@ import AdminPanel from "./components/AdminPanel";
 import Trash from "./components/Trash";
 import OfflineBanner from "./components/OfflineBanner";
 import { useNotebooks } from "./hooks/useNotebook";
+import { useCategories } from "./hooks/useCategories";
 import { Menu } from "lucide-react";
 
 const MOBILE_BREAKPOINT = 768;
 
+function Splash() {
+  return (
+    <div className="splash">
+      <div className="splash-logo">NT</div>
+      <span className="spinner" />
+    </div>
+  );
+}
+
 /* Mobile Top Header */
 function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
   const titles = {
-    tasks: activeCat ? activeCat.name || "Tasks" : "Tasks",
+    tasks: activeCat?.name || "Tasks",
     notes: "Notes",
     notebook: activeNotebook?.notebookName || "Notebook",
     trash: "Trash",
@@ -37,65 +51,81 @@ function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
   );
 }
 
-/* Main App */
-function AppInner() {
-  const { user, loading, isAdmin } = useAuth();
+/* Route guards */
+function RequireAuth() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <Splash />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  return <Outlet />;
+}
+
+function RequireAdmin() {
+  const { isAdmin, settingsLoading } = useAuth();
+  if (settingsLoading) return <Splash />;
+  if (!isAdmin) return <Navigate to="/tasks" replace />;
+  return <Outlet />;
+}
+
+function LoginRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return <Splash />;
+  if (user) return <Navigate to="/tasks" replace />;
+  return <LoginPage />;
+}
+
+/* Route views that read params */
+function TasksRoute() {
+  const { categoryId } = useParams();
+  return <Tasks filterCat={categoryId || null} />;
+}
+
+function NotebookRoute() {
+  const { notebookId } = useParams();
   const { notebooks } = useNotebooks();
-  const [active, setActive] = useState("tasks");
-  const [activeCat, setActiveCat] = useState(null);
-  const [activeNotebook, setActiveNotebook] = useState(null);
+  const navigate = useNavigate();
+
+  const notebook = notebooks.find((nb) => nb.id === notebookId) || null;
+
+  useEffect(() => {
+    if (notebook || !notebooks.length) return;
+    navigate(`/notebook/${notebooks[0].id}`, { replace: true });
+  }, [notebook, notebooks, navigate]);
+
+  return <Notebook notebook={notebook} />;
+}
+
+/* Authenticated shell */
+function AppLayout() {
+  const { isAdmin } = useAuth();
+  const { notebooks } = useNotebooks();
+  const { categories } = useCategories();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSbOpen, setMobileSbOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT);
 
   useEffect(() => {
-    if (!isAdmin && active === "admin") setActive("tasks");
-  }, [active, isAdmin]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobileViewport(window.innerWidth <= MOBILE_BREAKPOINT);
-    };
-
+    const handleResize = () => setIsMobileViewport(window.innerWidth <= MOBILE_BREAKPOINT);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
-    if (isMobileViewport && sidebarCollapsed) {
-      setSidebarCollapsed(false);
-    }
+    if (isMobileViewport && sidebarCollapsed) setSidebarCollapsed(false);
   }, [isMobileViewport, sidebarCollapsed]);
 
-  useEffect(() => {
-    if (active !== "notebook") return;
+  const active = location.pathname.split("/")[1] || "tasks";
+  const activeCatId = matchPath("/tasks/:categoryId", location.pathname)?.params.categoryId || null;
+  const activeNbId = matchPath("/notebook/:notebookId", location.pathname)?.params.notebookId || null;
+  const activeCat = categories.find((c) => c.id === activeCatId) || null;
+  const activeNotebook = notebooks.find((nb) => nb.id === activeNbId) || null;
 
-    const selectedNotebook = activeNotebook
-      ? notebooks.find((nb) => nb.id === activeNotebook.id)
-      : null;
-
-    if (!selectedNotebook) {
-      setActiveNotebook(notebooks[0] || null);
-      return;
-    }
-
-    if (
-      selectedNotebook.notebookName !== activeNotebook?.notebookName ||
-      selectedNotebook.color !== activeNotebook?.color
-    ) {
-      setActiveNotebook(selectedNotebook);
-    }
-  }, [active, activeNotebook, notebooks]);
-
-  if (loading)
-    return (
-      <div className="splash">
-        <div className="splash-logo">NT</div>
-        <span className="spinner" />
-      </div>
-    );
-
-  if (!user) return <LoginPage />;
+  const go = (path) => {
+    navigate(path);
+    setMobileSbOpen(false);
+  };
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? "sb-collapsed" : ""}`}>
@@ -113,20 +143,11 @@ function AppInner() {
       <div className={`sidebar-slot ${mobileSbOpen ? "mobile-open" : ""}`}>
         <Sidebar
           active={active}
-          setActive={(v) => {
-            setActive(v);
-            setMobileSbOpen(false);
-          }}
-          activeCat={activeCat}
-          setActiveCat={(v) => {
-            setActiveCat(v);
-            setMobileSbOpen(false);
-          }}
+          setActive={(v) => go(`/${v}`)}
+          activeCat={activeCatId}
+          setActiveCat={(v) => go(v ? `/tasks/${v}` : "/tasks")}
           activeNotebook={activeNotebook}
-          setActiveNotebook={(v) => {
-            setActiveNotebook(v);
-            setMobileSbOpen(false);
-          }}
+          setActiveNotebook={(v) => go(v ? `/notebook/${v.id}` : "/notebook")}
           isAdmin={isAdmin}
           allowCollapse={!isMobileViewport}
           collapsed={sidebarCollapsed}
@@ -135,11 +156,7 @@ function AppInner() {
       </div>
 
       <main className={`app-main ${active === "notebook" ? "nb-active" : ""}`}>
-        {active === "tasks" && <Tasks filterCat={activeCat} />}
-        {active === "notes" && <Notes />}
-        {active === "notebook" && <Notebook notebook={activeNotebook} />}
-        {active === "trash" && <Trash />}
-        {active === "admin" && <AdminPanel />}
+        <Outlet />
       </main>
     </div>
   );
@@ -148,9 +165,28 @@ function AppInner() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AppInner />
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginRoute />} />
+            <Route element={<RequireAuth />}>
+              <Route element={<AppLayout />}>
+                <Route index element={<Navigate to="/tasks" replace />} />
+                <Route path="tasks" element={<TasksRoute />} />
+                <Route path="tasks/:categoryId" element={<TasksRoute />} />
+                <Route path="notes" element={<Notes />} />
+                <Route path="notebook" element={<NotebookRoute />} />
+                <Route path="notebook/:notebookId" element={<NotebookRoute />} />
+                <Route path="trash" element={<Trash />} />
+                <Route element={<RequireAdmin />}>
+                  <Route path="admin" element={<AdminPanel />} />
+                </Route>
+              </Route>
+            </Route>
+            <Route path="*" element={<Navigate to="/tasks" replace />} />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
     </ThemeProvider>
   );
 }
