@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -28,7 +28,6 @@ import {
   Code,
   Undo,
   Redo,
-  Save,
   AlignLeft,
   AlertCircle,
 } from "lucide-react";
@@ -51,6 +50,18 @@ function clampStr(v, max = 60) {
   return v.length > max ? v.slice(0, max - 1) + "…" : v;
 }
 
+function snippetOf(page) {
+  const t = (page?.textContent || "").trim();
+  if (!t) return "No content yet";
+  return t.length > 90 ? t.slice(0, 90) + "…" : t;
+}
+
+function dateOf(page) {
+  return page?.updatedAt?.toDate
+    ? page.updatedAt.toDate().toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+    : "";
+}
+
 function useToast() {
   const [toast, setToast] = useState(null);
   const show = (msg, type = "success") => {
@@ -70,7 +81,7 @@ function Toast({ toast }) {
   );
 }
 
-function Toolbar({ editor, onSave, saving, dirty }) {
+function Toolbar({ editor }) {
   if (!editor) return null;
   const B = (active, fn, icon, tip) => (
     <button
@@ -136,73 +147,87 @@ function Toolbar({ editor, onSave, saving, dirty }) {
           "Code Block",
         )}
       </div>
-      <div className="nb-tb-spacer" />
-      <button
-        type="button"
-        className={`nb-save-btn ${dirty ? "dirty" : ""}`}
-        onClick={onSave}
-        disabled={saving || !dirty}
-        title="Save (Ctrl+S)"
-      >
-        {saving ? (
-          <span className="nb-spinner" />
-        ) : (
-          <>
-            <Save size={13} />
-            {dirty ? " Save" : " Saved"}
-          </>
-        )}
-      </button>
     </div>
   );
 }
 
-function PageEditor({ page, onSave: saveFn }) {
+function PageEditor({ page, onSave: saveFn, onStatus }) {
   const [title, setTitle] = useState(page?.pageName || "");
-  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const titleRef = useRef(title);
+  const saveTimerRef = useRef(null);
+
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+
+  const flush = useCallback(
+    async (ed) => {
+      if (!ed || !page) return;
+      clearTimeout(saveTimerRef.current);
+      setSaving(true);
+      try {
+        await saveFn(page.id, ed.getHTML(), ed.getText(), titleRef.current);
+        setDirty(false);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } catch (e) {
+        console.error("[Editor] save failed:", e);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [page, saveFn],
+  );
+
+  const scheduleSave = useCallback(
+    (ed) => {
+      setDirty(true);
+      setSaved(false);
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => flush(ed), 800);
+    },
+    [flush],
+  );
 
   const editor = useEditor(
     {
       extensions: [StarterKit, Underline, Placeholder.configure({ placeholder: "Start writing your page…" })],
       content: page?.htmlContent || "",
-      onUpdate: () => setDirty(true),
+      onUpdate: ({ editor: ed }) => scheduleSave(ed),
     },
     [page?.id],
   );
 
   useEffect(() => {
     setTitle(page?.pageName || "");
+    titleRef.current = page?.pageName || "";
     setDirty(false);
     setSaved(false);
+    clearTimeout(saveTimerRef.current);
   }, [page?.id]);
 
-  const handleSave = useCallback(async () => {
-    if (!editor || !page || saving) return;
-    setSaving(true);
-    try {
-      await saveFn(page.id, editor.getHTML(), editor.getText(), title);
-      setDirty(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } catch (e) {
-      console.error("[Editor] save failed:", e);
-    } finally {
-      setSaving(false);
-    }
-  }, [editor, page, saveFn, saving, title]);
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
 
   useEffect(() => {
     const fn = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        handleSave();
+        if (editor) flush(editor);
       }
     };
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
-  }, [handleSave]);
+  }, [editor, flush]);
+
+  const handleTitleChange = (e) => {
+    const v = e.target.value;
+    setTitle(v);
+    titleRef.current = v;
+    if (editor) scheduleSave(editor);
+  };
 
   const ts =
     page?.updatedAt?.toDate
@@ -210,6 +235,10 @@ function PageEditor({ page, onSave: saveFn }) {
           .toDate()
           .toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
+
+  useEffect(() => {
+    onStatus?.({ saving, saved, dirty, ts });
+  }, [saving, saved, dirty, ts, onStatus]);
 
   if (!page)
     return (
@@ -222,37 +251,36 @@ function PageEditor({ page, onSave: saveFn }) {
   return (
     <div className="nb-editor-panel">
       <div className="nb-page-head">
-        <input
-          className="nb-page-title"
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
-            setDirty(true);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              editor?.commands.focus();
-            }
-          }}
-          placeholder="Page title…"
-        />
-        <div className="nb-page-meta">
-          {saving && (
-            <span className="nb-meta-tag saving">
-              <span className="nb-spinner" /> Saving…
-            </span>
-          )}
-          {saved && !saving && (
-            <span className="nb-meta-tag saved">
-              <Check size={11} /> Saved
-            </span>
-          )}
-          {dirty && !saving && !saved && <span className="nb-meta-tag unsaved">● Unsaved</span>}
-          {ts && !dirty && !saved && !saving && <span className="nb-meta-tag ts">Edited {ts}</span>}
+        <div className="nb-page-head-inner">
+          <input
+            className="nb-page-title"
+            value={title}
+            onChange={handleTitleChange}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                editor?.commands.focus();
+              }
+            }}
+            placeholder="Page title…"
+          />
+          <div className="nb-page-meta">
+            {saving && (
+              <span className="nb-meta-tag saving">
+                <span className="nb-spinner" /> Saving…
+              </span>
+            )}
+            {saved && !saving && (
+              <span className="nb-meta-tag saved">
+                <Check size={11} /> Saved
+              </span>
+            )}
+            {dirty && !saving && !saved && <span className="nb-meta-tag unsaved">● Unsaved</span>}
+            {ts && !dirty && !saved && !saving && <span className="nb-meta-tag ts">Edited {ts}</span>}
+          </div>
         </div>
       </div>
-      <Toolbar editor={editor} onSave={handleSave} saving={saving} dirty={dirty} />
+      <Toolbar editor={editor} />
       <div className="nb-editor-body">
         <EditorContent editor={editor} className="nb-prose" />
       </div>
@@ -260,7 +288,8 @@ function PageEditor({ page, onSave: saveFn }) {
   );
 }
 
-function PagesPanel({ section, notebookId, activePage, setActivePage, uid, showToast }) {
+/* ── Pages column — rows with snippet + date ─────────────── */
+function PagesPanel({ section, notebookId, activePage, setActivePage, onOpenPage, uid, showToast }) {
   const { pages, createPage, renamePage } = usePages(section?.id);
   const [editId, setEditId] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -270,7 +299,7 @@ function PagesPanel({ section, notebookId, activePage, setActivePage, uid, showT
     if (pages.length > 0) {
       setActivePage(pages[0]);
     }
-  }, [section?.id]); // Only depend on section change
+  }, [section?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When pages change but section stays same, validate active page
   useEffect(() => {
@@ -317,78 +346,12 @@ function PagesPanel({ section, notebookId, activePage, setActivePage, uid, showT
         <span className="nb-col-title" style={{ color: section?.color }}>
           {section?.sectionName || "Pages"}
         </span>
-        <div className="nb-selector-actions nb-mobile-only">
-          {activePage && !deleting && (
-            <>
-              <button className="nb-col-add" onClick={() => setEditId(activePage.id)} title="Rename page">
-                <Pencil size={14} />
-              </button>
-              <button className="nb-col-add danger" onClick={() => handleDeletePage(activePage)} title="Delete page">
-                <Trash2 size={14} />
-              </button>
-            </>
-          )}
-          <button className="nb-col-add" onClick={handleAddPage} title="New page">
-            <Plus size={14} />
-          </button>
-        </div>
-        <button className="nb-col-add nb-desktop-only" onClick={handleAddPage} title="New page">
+        <button className="nb-col-add" onClick={handleAddPage} title="New page">
           <Plus size={14} />
         </button>
       </div>
 
-      <div className="nb-pages-list nb-pages-dropdown-wrap nb-mobile-only">
-        {pages.length === 0 && (
-          <div className="nb-col-empty">
-            <span className="spinner" style={{ width: 18, height: 18 }} />
-          </div>
-        )}
-        {pages.length > 0 &&
-          (editId === activePage?.id ? (
-            <input
-              className="nb-item-input nb-selector-input"
-              defaultValue={activePage?.pageName || "Untitled"}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  renamePage(activePage.id, e.target.value);
-                  setEditId(null);
-                }
-                if (e.key === "Escape") setEditId(null);
-              }}
-              onBlur={(e) => {
-                renamePage(activePage.id, e.target.value);
-                setEditId(null);
-              }}
-            />
-          ) : (
-            <label className="nb-selector-field">
-              <span className="nb-selector-label" style={{ color: section?.color }}>
-                {section?.sectionName || "Pages"}
-              </span>
-              <div className={`nb-selector-box ${deleting === activePage?.id ? "is-busy" : ""}`}>
-                <FileText size={15} className="nb-page-icon" />
-                <select
-                  className="nb-selector"
-                  value={activePage?.id || ""}
-                  onChange={(e) => {
-                    const nextPage = pages.find((page) => page.id === e.target.value);
-                    if (nextPage) setActivePage(nextPage);
-                  }}
-                >
-                  {pages.map((page) => (
-                    <option key={page.id} value={page.id}>
-                      {page.pageName || "Untitled"}
-                    </option>
-                  ))}
-                </select>
-                {deleting === activePage?.id && <span className="nb-selector-status">Deleting...</span>}
-              </div>
-            </label>
-          ))}
-      </div>
-
-      <div className="nb-pages-list nb-desktop-only">
+      <div className="nb-pages-list">
         {pages.length === 0 && (
           <div className="nb-col-empty">
             <span className="spinner" style={{ width: 18, height: 18 }} />
@@ -401,9 +364,10 @@ function PagesPanel({ section, notebookId, activePage, setActivePage, uid, showT
             onClick={() => {
               if (deleting === page.id) return;
               setActivePage(page);
+              onOpenPage?.();
             }}
           >
-            <FileText size={13} className="nb-page-icon" />
+            <FileText size={14} className="nb-page-icon" />
             {editId === page.id ? (
               <input
                 className="nb-item-input"
@@ -423,22 +387,28 @@ function PagesPanel({ section, notebookId, activePage, setActivePage, uid, showT
                 }}
               />
             ) : (
-              <span className="nb-item-name">{page.pageName || "Untitled"}</span>
+              <div className="nb-page-body">
+                <span className="nb-page-name">{page.pageName || "Untitled"}</span>
+                <span className="nb-page-snippet">{snippetOf(page)}</span>
+              </div>
             )}
             {deleting === page.id ? (
               <span className="nb-deleting-spinner">
                 <span className="spinner" style={{ width: 12, height: 12 }} />
               </span>
-            ) : (
-              <div className="nb-item-actions" onClick={(e) => e.stopPropagation()}>
-                <button className="nb-action-btn" onClick={() => setEditId(page.id)} title="Rename">
-                  <Pencil size={11} />
-                </button>
-                <button className="nb-action-btn danger" onClick={() => handleDeletePage(page)} title="Delete">
-                  <Trash2 size={11} />
-                </button>
+            ) : editId !== page.id ? (
+              <div className="nb-page-trail">
+                <span className="nb-page-date">{dateOf(page)}</span>
+                <div className="nb-item-actions" onClick={(e) => e.stopPropagation()}>
+                  <button className="nb-action-btn" onClick={() => setEditId(page.id)} title="Rename">
+                    <Pencil size={11} />
+                  </button>
+                  <button className="nb-action-btn danger" onClick={() => handleDeletePage(page)} title="Delete">
+                    <Trash2 size={11} />
+                  </button>
+                </div>
               </div>
-            )}
+            ) : null}
           </div>
         ))}
       </div>
@@ -446,8 +416,9 @@ function PagesPanel({ section, notebookId, activePage, setActivePage, uid, showT
   );
 }
 
-function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage, uid, showToast }) {
-  const { sections, createSection, renameSection } = useSections(notebook?.id);
+/* ── Sections rail — vertical list ───────────────────────── */
+function SectionsRail({ notebookId, activeSection, setActiveSection, setActivePage, showToast }) {
+  const { sections, createSection, renameSection } = useSections(notebookId);
   const [addingSection, setAddingSection] = useState(false);
   const [newSecName, setNewSecName] = useState("");
   const [newSecColor, setNewSecColor] = useState(SEC_COLORS[0]);
@@ -458,7 +429,7 @@ function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage
     if (sections.length > 0 && (!activeSection || !sections.find((s) => s.id === activeSection.id))) {
       setActiveSection(sections[0]);
     }
-  }, [sections.length, notebook?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sections.length, notebookId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddSection = async () => {
     if (!newSecName.trim()) return;
@@ -485,7 +456,7 @@ function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage
     }
 
     try {
-      const result = await svcDeleteSection(sec.id, notebook.id, uid);
+      const result = await svcDeleteSection(sec.id, notebookId, sec.uid);
       if (result.autoCreated) showToast("Section deleted — default section created", "info");
       else showToast("Section and pages deleted", "success");
     } catch (e) {
@@ -498,22 +469,69 @@ function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage
   };
 
   return (
-    <div className="nb-topbar">
-      <div className="nb-top-left">
-        <span className="nb-nb-dot" style={{ background: notebook?.color || "var(--accent)" }} />
-        <div className="nb-nb-copy">
-          <span className="nb-nb-kicker">Notebook</span>
-          <span className="nb-nb-title" title={notebook?.notebookName}>
-            {clampStr(notebook?.notebookName || "Notebook", 32)}
-          </span>
-        </div>
+    <div className="nb-sections-col">
+      <div className="nb-col-header">
+        <span className="nb-col-title">Sections</span>
+        <button className="nb-col-add" onClick={() => setAddingSection(true)} title="New section">
+          <Plus size={14} />
+        </button>
       </div>
 
-      <div className="nb-tabs nb-mobile-only" role="group" aria-label="Sections">
+      <div className="nb-sections-list">
+        {sections.map((sec) => {
+          const active = activeSection?.id === sec.id;
+          const isDeleting = deleting === sec.id;
+          return editId === sec.id ? (
+            <div key={sec.id} className="nb-sec-item active">
+              <span className="nb-sec-stripe" style={{ background: sec.color }} />
+              <input
+                className="nb-item-input"
+                defaultValue={sec.sectionName}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    renameSection(sec.id, e.target.value, sec.color);
+                    setEditId(null);
+                  }
+                  if (e.key === "Escape") setEditId(null);
+                }}
+                onBlur={(e) => {
+                  renameSection(sec.id, e.target.value, sec.color);
+                  setEditId(null);
+                }}
+              />
+            </div>
+          ) : (
+            <button
+              key={sec.id}
+              className={`nb-sec-item ${active ? "active" : ""} ${isDeleting ? "deleting" : ""}`}
+              onClick={() => !isDeleting && (setActiveSection(sec), setActivePage(null))}
+              title={sec.sectionName}
+            >
+              <span className="nb-sec-stripe" style={{ background: sec.color }} />
+              <span className="nb-item-name">{clampStr(sec.sectionName || "Section", 28)}</span>
+              {isDeleting ? (
+                <span className="nb-tab-spin">
+                  <span className="spinner" style={{ width: 12, height: 12 }} />
+                </span>
+              ) : (
+                <div className="nb-item-actions" onClick={(e) => e.stopPropagation()}>
+                  <button className="nb-action-btn" onClick={() => setEditId(sec.id)} title="Rename section">
+                    <Pencil size={11} />
+                  </button>
+                  <button className="nb-action-btn danger" onClick={() => handleDeleteSection(sec)} title="Delete section">
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              )}
+            </button>
+          );
+        })}
+
         {addingSection ? (
-          <div className="nb-tab nb-tab-add">
+          <div className="nb-add-sec-form">
             <input
-              className="nb-tab-input"
+              className="nb-item-input"
               placeholder="Section name…"
               value={newSecName}
               autoFocus
@@ -526,22 +544,7 @@ function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage
                 }
               }}
             />
-            <div className="nb-tab-add-actions">
-              <button
-                className="nb-tab-btn"
-                onClick={() => {
-                  setAddingSection(false);
-                  setNewSecName("");
-                }}
-                title="Cancel"
-              >
-                <X size={12} />
-              </button>
-              <button className="nb-tab-btn ok" onClick={handleAddSection} disabled={!newSecName.trim()} title="Create">
-                <Check size={12} />
-              </button>
-            </div>
-            <div className="nb-tab-colors">
+            <div className="nb-color-row">
               {SEC_COLORS.slice(0, 8).map((c) => (
                 <button
                   key={c}
@@ -551,145 +554,9 @@ function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage
                 />
               ))}
             </div>
-          </div>
-        ) : (
-          <>
-            {sections.length > 0 &&
-              (editId === activeSection?.id ? (
-                <input
-                  className="nb-tab-input nb-selector-input"
-                  defaultValue={activeSection?.sectionName}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      renameSection(activeSection.id, e.target.value, activeSection.color);
-                      setEditId(null);
-                    }
-                    if (e.key === "Escape") setEditId(null);
-                  }}
-                  onBlur={(e) => {
-                    renameSection(activeSection.id, e.target.value, activeSection.color);
-                    setEditId(null);
-                  }}
-                />
-              ) : (
-                <label className="nb-selector-field nb-selector-field-section">
-                  <span className="nb-selector-label">Section</span>
-                  <div className={`nb-selector-box ${deleting === activeSection?.id ? "is-busy" : ""}`}>
-                    <span className="nb-tab-stripe" style={{ background: activeSection?.color || "var(--accent)" }} />
-                    <select
-                      className="nb-selector"
-                      value={activeSection?.id || ""}
-                      onChange={(e) => {
-                        const nextSection = sections.find((sec) => sec.id === e.target.value);
-                        if (nextSection) {
-                          setActiveSection(nextSection);
-                          setActivePage(null);
-                        }
-                      }}
-                    >
-                      {sections.map((sec) => (
-                        <option key={sec.id} value={sec.id}>
-                          {sec.sectionName || "Section"}
-                        </option>
-                      ))}
-                    </select>
-                    {deleting === activeSection?.id && <span className="nb-selector-status">Deleting...</span>}
-                  </div>
-                </label>
-              ))}
-            <div className="nb-selector-actions">
-              {activeSection && !deleting && (
-                <>
-                  <button className="nb-tab-btn" onClick={() => setEditId(activeSection.id)} title="Rename section">
-                    <Pencil size={12} />
-                  </button>
-                  <button className="nb-tab-btn danger" onClick={() => handleDeleteSection(activeSection)} title="Delete section">
-                    <Trash2 size={12} />
-                  </button>
-                </>
-              )}
-              <button className="nb-tab-add-btn" onClick={() => setAddingSection(true)} title="New section">
-                <Plus size={14} /> Section
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="nb-tabs nb-desktop-only" role="tablist" aria-label="Sections">
-        {sections.map((sec) => {
-          const active = activeSection?.id === sec.id;
-          const isDeleting = deleting === sec.id;
-          return (
-            <div
-              key={sec.id}
-              className={`nb-tab ${active ? "active" : ""} ${isDeleting ? "deleting" : ""}`}
-              role="tab"
-              aria-selected={active}
-              onClick={() => !isDeleting && (setActiveSection(sec), setActivePage(null))}
-              title={sec.sectionName}
-            >
-              <span className="nb-tab-stripe" style={{ background: sec.color }} />
-              {editId === sec.id ? (
-                <input
-                  className="nb-tab-input"
-                  defaultValue={sec.sectionName}
-                  autoFocus
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      renameSection(sec.id, e.target.value, sec.color);
-                      setEditId(null);
-                    }
-                    if (e.key === "Escape") setEditId(null);
-                  }}
-                  onBlur={(e) => {
-                    renameSection(sec.id, e.target.value, sec.color);
-                    setEditId(null);
-                  }}
-                />
-              ) : (
-                <span className="nb-tab-name">{clampStr(sec.sectionName || "Section", 28)}</span>
-              )}
-
-              {isDeleting ? (
-                <span className="nb-tab-spin">
-                  <span className="spinner" style={{ width: 12, height: 12 }} />
-                </span>
-              ) : (
-                <div className="nb-tab-actions" onClick={(e) => e.stopPropagation()}>
-                  <button className="nb-tab-btn" onClick={() => setEditId(sec.id)} title="Rename section">
-                    <Pencil size={12} />
-                  </button>
-                  <button className="nb-tab-btn danger" onClick={() => handleDeleteSection(sec)} title="Delete section">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {addingSection ? (
-          <div className="nb-tab nb-tab-add">
-            <input
-              className="nb-tab-input"
-              placeholder="Section name..."
-              value={newSecName}
-              autoFocus
-              onChange={(e) => setNewSecName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddSection();
-                if (e.key === "Escape") {
-                  setAddingSection(false);
-                  setNewSecName("");
-                }
-              }}
-            />
-            <div className="nb-tab-add-actions">
+            <div className="nb-add-actions">
               <button
-                className="nb-tab-btn"
+                className="nb-cancel-btn"
                 onClick={() => {
                   setAddingSection(false);
                   setNewSecName("");
@@ -698,24 +565,14 @@ function SectionsTabs({ notebook, activeSection, setActiveSection, setActivePage
               >
                 <X size={12} />
               </button>
-              <button className="nb-tab-btn ok" onClick={handleAddSection} disabled={!newSecName.trim()} title="Create">
+              <button className="nb-ok-btn" onClick={handleAddSection} disabled={!newSecName.trim()} title="Create">
                 <Check size={12} />
               </button>
             </div>
-            <div className="nb-tab-colors">
-              {SEC_COLORS.slice(0, 8).map((c) => (
-                <button
-                  key={c}
-                  className={`nb-color-dot ${newSecColor === c ? "sel" : ""}`}
-                  style={{ background: c }}
-                  onClick={() => setNewSecColor(c)}
-                />
-              ))}
-            </div>
           </div>
         ) : (
-          <button className="nb-tab-add-btn" onClick={() => setAddingSection(true)} title="New section">
-            <Plus size={14} /> Section
+          <button className="nb-tab-add-btn nb-add-sec-btn" onClick={() => setAddingSection(true)}>
+            <Plus size={14} /> New section
           </button>
         )}
       </div>
@@ -728,6 +585,7 @@ export default function Notebook({ notebook }) {
   const [activeSection, setActiveSection] = useState(null);
   const [activePage, setActivePage] = useState(null);
   const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
+  const [pageStatus, setPageStatus] = useState({});
   const { toast, show: showToast } = useToast();
 
   useEffect(() => {
@@ -753,38 +611,61 @@ export default function Notebook({ notebook }) {
 
   return (
     <div className={`nb-shell ${mobileEditorOpen ? "nb-shell-editor-open" : ""}`}>
-      <SectionsTabs
-        notebook={notebook}
-        activeSection={activeSection}
-        setActiveSection={setActiveSection}
-        setActivePage={setActivePage}
-        uid={user?.uid}
-        showToast={showToast}
-      />
+      <div className="nb-topbar">
+        <div className="nb-top-left">
+          <span className="nb-nb-dot" style={{ background: notebook?.color || "var(--accent)" }} />
+          <div className="nb-nb-copy">
+            <span className="nb-nb-kicker">Notebook</span>
+            <span className="nb-nb-title" title={notebook?.notebookName}>
+              {clampStr(notebook?.notebookName || "Notebook", 32)}
+            </span>
+          </div>
+        </div>
+      </div>
 
       <div className={`nb-layout ${mobileEditorOpen ? "nb-layout-editor-open" : ""}`}>
+        <SectionsRail
+          notebookId={notebook.id}
+          activeSection={activeSection}
+          setActiveSection={setActiveSection}
+          setActivePage={setActivePage}
+          showToast={showToast}
+        />
+
         {activeSection && (
           <PagesPanel
             section={activeSection}
             notebookId={notebook.id}
             activePage={liveActivePage}
-            setActivePage={(page) => {
-              setActivePage(page);
-              setMobileEditorOpen(true);
-            }}
+            setActivePage={setActivePage}
+            onOpenPage={() => setMobileEditorOpen(true)}
             uid={user?.uid}
             showToast={showToast}
           />
         )}
+
         <div className={`nb-editor-wrap ${mobileEditorOpen ? "mobile-open" : ""}`}>
           <div className="nb-mobile-editor-head">
             <button type="button" className="nb-mobile-back" onClick={() => setMobileEditorOpen(false)}>
               <ChevronLeft size={16} />
               <span>Back</span>
             </button>
-            <span className="nb-mobile-editor-label">{activePage?.pageName || "Page"}</span>
+            <div className="nb-mobile-editor-info">
+              <span className="nb-mobile-editor-label">{activePage?.pageName || "Page"}</span>
+              <span className="nb-mobile-editor-status">
+                {pageStatus.saving
+                  ? "Saving…"
+                  : pageStatus.saved
+                    ? "Saved"
+                    : pageStatus.dirty
+                      ? "Unsaved"
+                      : pageStatus.ts
+                        ? `Edited ${pageStatus.ts}`
+                        : ""}
+              </span>
+            </div>
           </div>
-          <PageEditor page={liveActivePage} onSave={savePage} />
+          <PageEditor page={liveActivePage} onSave={savePage} onStatus={setPageStatus} />
         </div>
       </div>
 

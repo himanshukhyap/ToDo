@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && firebase deploy --project todo-ec064",
     "deploy:hosting": "npm run build && firebase deploy --only hosting --project todo-ec064",
+    "Only Hosting":"firebase deploy --only hosting --project todo-ec064",
     "deploy:firestore": "firebase deploy --only firestore --project todo-ec064"
   },
   "dependencies": {

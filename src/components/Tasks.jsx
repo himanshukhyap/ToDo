@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTasks } from "../hooks/useTasks";
 import { useCategories } from "../hooks/useCategories";
 import { confirmBulkDelete, confirmDelete, errorAlert, toast } from "../utils/swal";
@@ -347,63 +348,71 @@ function MobileTaskCard({ task, categories, onToggle, onUpdate, onDelete,
 
   return (
     <div className="mtask-row">
-      <div className="mtask-swipe-actions">
-        <button className="mtask-swipe-btn edit" onClick={() => { setEditing(true); closeSwipe(); }}>
-          <Pencil size={15}/> Edit
-        </button>
-        <button className="mtask-swipe-btn del" onClick={handleDelete}>
-          <Trash2 size={15}/> Delete
-        </button>
-      </div>
+      <div className="mtask-swipe-wrap">
+        <div className="mtask-swipe-actions">
+          <button className="mtask-swipe-btn edit" onClick={() => { setEditing(true); closeSwipe(); }}>
+            <Pencil size={15}/> Edit
+          </button>
+          <button className="mtask-swipe-btn del" onClick={handleDelete}>
+            <Trash2 size={15}/> Delete
+          </button>
+        </div>
 
-      <div
-        className={`mtask-content ${dragging ? "dragging" : ""}`}
-        style={{ transform: `translateX(${dragX}px)` }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        {editing ? (
-          <div className="task-edit-inline mtask-edit">
-            <input className="input-sm flex1" value={editTitle} autoFocus
-              onChange={e => setEditTitle(e.target.value)}
-              onKeyDown={e => { if(e.key==="Enter") saveEdit(); if(e.key==="Escape") setEditing(false); }}/>
-            <select className="input-sm cat-select" value={editCat} onChange={e => setEditCat(e.target.value)}>
-              <option value="">No category</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <button className="icon-btn" onClick={() => setEditing(false)}><X size={13}/></button>
-            <button className="icon-btn green" onClick={saveEdit}><Check size={13}/></button>
-          </div>
-        ) : (
-          <div className="mtask-main" role="button" tabIndex={0}
-            onClick={() => open ? closeSwipe() : setExpanded(e => !e)}
-            onKeyDown={e => { if (e.key==="Enter"||e.key===" ") { e.preventDefault(); open ? closeSwipe() : setExpanded(x=>!x); } }}>
-            <button className="task-check" onClick={(e) => { e.stopPropagation(); onToggle(task.id, task.completed); }}>
-              {task.completed ? <CheckCircle2 size={19}/> : <Circle size={19}/>}
-            </button>
-            <span className="cat-stripe" style={{ background: cat?.color || "var(--text3)" }}/>
-            <span className="mtask-body">
-              <span className={`mtask-title ${task.completed ? "done" : ""}`}>{task.title}</span>
-              <span className="mtask-meta">
-                {cat ? cat.name : "No category"}
-                {subtasks.length > 0 && <> · {doneCount}/{subtasks.length} subtasks</>}
+        <div
+          className={`mtask-content ${dragging ? "dragging" : ""}`}
+          style={{ transform: `translateX(${dragX}px)` }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          {editing ? (
+            <div className="task-edit-inline mtask-edit">
+              <input className="input-sm flex1" value={editTitle} autoFocus
+                onChange={e => setEditTitle(e.target.value)}
+                onKeyDown={e => { if(e.key==="Enter") saveEdit(); if(e.key==="Escape") setEditing(false); }}/>
+              <select className="input-sm cat-select" value={editCat} onChange={e => setEditCat(e.target.value)}>
+                <option value="">No category</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button className="icon-btn" onClick={() => setEditing(false)}><X size={13}/></button>
+              <button className="icon-btn green" onClick={saveEdit}><Check size={13}/></button>
+            </div>
+          ) : (
+            <div className="mtask-main" role="button" tabIndex={0}
+              onClick={() => open ? closeSwipe() : setExpanded(e => !e)}
+              onKeyDown={e => { if (e.key==="Enter"||e.key===" ") { e.preventDefault(); open ? closeSwipe() : setExpanded(x=>!x); } }}>
+              <button className="task-check" onClick={(e) => { e.stopPropagation(); onToggle(task.id, task.completed); }}>
+                {task.completed ? <CheckCircle2 size={19}/> : <Circle size={19}/>}
+              </button>
+              <span className="cat-stripe" style={{ background: cat?.color || "var(--text3)" }}/>
+              <span className="mtask-body">
+                <span className={`mtask-title ${task.completed ? "done" : ""}`}>{task.title}</span>
+                <span className="mtask-meta">
+                  {cat ? cat.name : "No category"}
+                  {subtasks.length > 0 && <> · {doneCount}/{subtasks.length} subtasks</>}
+                </span>
               </span>
-            </span>
-            {expanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-          </div>
-        )}
+              {expanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+            </div>
+          )}
+        </div>
       </div>
 
       {expanded && !editing && (
         <div className="subtask-area">
           <div className="mtask-quickrow">
+            <button className="mtask-quick-btn" onClick={() => setEditing(true)}>
+              <Pencil size={13}/> Edit
+            </button>
             <button className="mtask-quick-btn" onClick={handleShare}>
               {shared ? <Check size={13}/> : <Share2 size={13}/>} Share
             </button>
             <button className="mtask-quick-btn" onClick={handleCopy}>
               {copied ? <Check size={13}/> : <Copy size={13}/>} Copy
+            </button>
+            <button className="mtask-quick-btn danger" onClick={handleDelete}>
+              <Trash2 size={13}/> Delete
             </button>
           </div>
           {subtasks.map(sub => (
@@ -438,6 +447,7 @@ function MobileTaskList({ tasks, categories, emptyMsg, handlers }) {
 
 /* ── Main Tasks panel ───────────────────────────────────── */
 export default function Tasks({ filterCat: externalCat }) {
+  const navigate = useNavigate();
   const { tasks, loading, error, addTask, updateTask, deleteTask, toggleTask,
     addSubtask, updateSubtask, toggleSubtask, deleteSubtask, deleteAllTasks } = useTasks();
   const { categories } = useCategories();
@@ -505,8 +515,8 @@ export default function Tasks({ filterCat: externalCat }) {
               onChange={e => setSearch(e.target.value)}/>
             {search && <button className="search-clear" onClick={() => setSearch("")}><X size={13}/></button>}
           </div>
-          <button className="btn-ghost sm" onClick={() => setShowCatMgr(true)}>
-            <Folder size={14}/> Categories
+          <button className="btn-ghost sm" onClick={() => setShowCatMgr(true)} title="Categories">
+            <Folder size={14}/> <span className="btn-label">Categories</span>
           </button>
           <button
             className="btn-ghost sm"
@@ -515,7 +525,7 @@ export default function Tasks({ filterCat: externalCat }) {
             title="Delete all tasks"
           >
             <Trash2 size={14}/>
-            {bulkDeleting ? "Deleting..." : "Delete All"}
+            <span className="btn-label">{bulkDeleting ? "Deleting..." : "Delete All"}</span>
           </button>
         </div>
       </div>
@@ -536,9 +546,10 @@ export default function Tasks({ filterCat: externalCat }) {
       {categories.length > 0 && !externalCat && (
         <div className="cat-filter-bar">
           {categories.map(c => (
-            <span key={c.id} className="cat-filter-tag" style={{background:c.color+"18",color:c.color,border:`1px solid ${c.color}33`}}>
+            <button key={c.id} className="cat-filter-tag" onClick={() => navigate(`/tasks/${c.id}`)}
+              style={{background:c.color+"18",color:c.color,border:`1px solid ${c.color}33`}}>
               <span className="cat-dot-xs" style={{background:c.color}}/>{c.name}
-            </span>
+            </button>
           ))}
         </div>
       )}
