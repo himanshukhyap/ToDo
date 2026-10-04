@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "NoteTask",
+    "slug": "notetask",
+    "scheme": "notetask",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0f1117",
+    "android": {
+      "package": "com.notetask.app",
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "backgroundColor": "#111827",
+        "foregroundImage": "./assets/icon.png"
+      },
+      "versionCode": 1,
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#0f1117"
+        }
+      ],
+      "./plugins/withGradleMemory",
+      "./plugins/withReleaseSigning",
+      "@react-native-google-signin/google-signin"
+    ]
+  }
+}

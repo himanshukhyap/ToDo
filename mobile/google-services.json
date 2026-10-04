@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "547962875689",
+    "project_id": "todo-ec064",
+    "storage_bucket": "todo-ec064.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:547962875689:android:d00363bcb2459581f75138",
+        "android_client_info": {
+          "package_name": "com.notetask.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "547962875689-kh0b3q938j720ei301pilr5ibq9kulci.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.notetask.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "547962875689-tafdqmvebtsnpg9jp1ksbldffdc8lprd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.notetask.app",
+            "certificate_hash": "1394819c0788c12559fa478f6c4c25592cfbb836"
+          }
+        },
+        {
+          "client_id": "547962875689-ecpa198lje0ii7g1jkmueves776fv004.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6OhVzx2ubyMANf3O0euJ4KfKjCUSTeG8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "547962875689-ecpa198lje0ii7g1jkmueves776fv004.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
