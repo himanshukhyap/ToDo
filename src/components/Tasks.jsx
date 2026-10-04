@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTasks } from "../hooks/useTasks";
 import { useCategories } from "../hooks/useCategories";
 import { confirmBulkDelete, confirmDelete, errorAlert, toast } from "../utils/swal";
@@ -455,6 +455,15 @@ export default function Tasks({ filterCat: externalCat }) {
   const [search,     setSearch]     = useState("");
   const [mobileTab,  setMobileTab]  = useState("pending");
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Opened from global search: /tasks?q=<task title>
+  const qParam = searchParams.get("q");
+  useEffect(() => {
+    if (qParam === null) return;
+    setSearch(qParam);
+    setSearchParams((prev) => { prev.delete("q"); return prev; }, { replace: true });
+  }, [qParam, setSearchParams]);
 
   const isSearching = search.trim().length > 0;
 

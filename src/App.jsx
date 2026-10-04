@@ -13,9 +13,10 @@ import Notebook from "./components/Notebook";
 import AdminPanel from "./components/AdminPanel";
 import Trash from "./components/Trash";
 import OfflineBanner from "./components/OfflineBanner";
+import GlobalSearch from "./components/GlobalSearch";
 import { useNotebooks } from "./hooks/useNotebook";
 import { useCategories } from "./hooks/useCategories";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -29,7 +30,7 @@ function Splash() {
 }
 
 /* Mobile Top Header */
-function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
+function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen, onSearch }) {
   const titles = {
     tasks: activeCat?.name || "Tasks",
     notes: "Notes",
@@ -46,7 +47,11 @@ function MobileHeader({ active, activeCat, activeNotebook, onMenuOpen }) {
         <span className="mth-logo">NT</span>
         <span className="mth-title">{titles[active]}</span>
       </div>
-      <div className="mth-right" />
+      <div className="mth-right">
+        <button className="mth-search-btn" onClick={onSearch} aria-label="Search">
+          <Search size={20} />
+        </button>
+      </div>
     </header>
   );
 }
@@ -104,12 +109,25 @@ function AppLayout() {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSbOpen, setMobileSbOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT);
 
   useEffect(() => {
     const handleResize = () => setIsMobileViewport(window.innerWidth <= MOBILE_BREAKPOINT);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Ctrl+K / Cmd+K opens global search from anywhere
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   useEffect(() => {
@@ -138,6 +156,7 @@ function AppLayout() {
         activeCat={activeCat}
         activeNotebook={activeNotebook}
         onMenuOpen={() => setMobileSbOpen(true)}
+        onSearch={() => setSearchOpen(true)}
       />
 
       <div className={`sidebar-slot ${mobileSbOpen ? "mobile-open" : ""}`}>
@@ -152,12 +171,15 @@ function AppLayout() {
           allowCollapse={!isMobileViewport}
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
+          onSearch={() => { setMobileSbOpen(false); setSearchOpen(true); }}
         />
       </div>
 
       <main className={`app-main ${active === "notebook" ? "nb-active" : ""}`}>
         <Outlet />
       </main>
+
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

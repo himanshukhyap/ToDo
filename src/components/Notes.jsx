@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useNotes } from "../hooks/useNotes";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -275,6 +276,16 @@ export default function Notes() {
   const [editingNote, setEditing]   = useState(null);
   const [search, setSearch]         = useState("");
   const [activeNote, setActiveNote] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Opened from global search: /notes?note=<id>
+  const noteParam = searchParams.get("note");
+  useEffect(() => {
+    if (!noteParam || loading) return;
+    const found = notes.find((n) => n.id === noteParam);
+    if (found) setActiveNote(found);
+    setSearchParams((prev) => { prev.delete("note"); return prev; }, { replace: true });
+  }, [noteParam, loading, notes, setSearchParams]);
 
   const filtered = notes.filter(n =>
     (n.textContent || n.content || "").toLowerCase().includes(search.toLowerCase())

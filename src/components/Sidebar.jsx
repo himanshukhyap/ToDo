@@ -10,7 +10,7 @@ import InstallPWA from "./InstallPWA";
 import {
   CheckSquare, StickyNote, BookOpen, ChevronDown, ChevronRight,
   Plus, Sun, Moon, LogOut, MoreHorizontal, Pencil, Trash2,
-  Check, X, Menu, PanelLeftClose, Shield,
+  Check, X, Menu, PanelLeftClose, Shield, Search,
 } from "lucide-react";
 
 const COLORS = ["#6366f1","#8b5cf6","#ec4899","#f43f5e","#f59e0b","#10b981","#06b6d4","#3b82f6","#84cc16","#f97316"];
@@ -78,7 +78,7 @@ function SbGroup({ label, icon, children, defaultOpen = true }) {
 /* ── Main Sidebar ─────────────────────────────── */
 export default function Sidebar({
   active, setActive, activeCat, setActiveCat,
-  activeNotebook, setActiveNotebook, isAdmin, allowCollapse = true, collapsed, setCollapsed
+  activeNotebook, setActiveNotebook, isAdmin, allowCollapse = true, collapsed, setCollapsed, onSearch,
 }) {
   const { user, logout, sessionTimeoutMs }  = useAuth();
   const { theme, toggle } = useTheme();
@@ -155,6 +155,7 @@ export default function Sidebar({
         <Menu size={18}/>
       </button>
       <div className="sb-collapsed-icons">
+        <button className="sb-col-icon" onClick={onSearch} title="Search (Ctrl+K)"><Search size={18}/></button>
         <button className={`sb-col-icon ${active==="tasks"    ? "active":""}`} onClick={()=>setActive("tasks")}    title="Tasks"><CheckSquare size={18}/></button>
         <button className={`sb-col-icon ${active==="notes"    ? "active":""}`} onClick={()=>setActive("notes")}    title="Notes"><StickyNote size={18}/></button>
         <button className={`sb-col-icon ${active==="notebook" ? "active":""}`} onClick={()=>setActive("notebook")} title="Notebook"><BookOpen size={18}/></button>
@@ -185,6 +186,12 @@ export default function Sidebar({
           </button>
         )}
       </div>
+
+      <button className="sb-search-btn" onClick={onSearch}>
+        <Search size={14}/>
+        <span>Search</span>
+        <kbd>Ctrl K</kbd>
+      </button>
 
       <nav className="sb-nav">
         {/* ── TASKS ────────────────────────────── */}

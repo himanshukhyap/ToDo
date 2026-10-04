@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -596,6 +597,30 @@ export default function Notebook({ notebook }) {
 
   const { pages, savePage } = usePages(activeSection?.id);
   const liveActivePage = activePage ? pages.find((p) => p.id === activePage.id) || activePage : null;
+
+  // Opened from global search: /notebook/<id>?section=<sectionId>&page=<pageId>
+  const [searchParams, setSearchParams] = useSearchParams();
+  const targetSectionId = searchParams.get("section");
+  const targetPageId = searchParams.get("page");
+  const { sections: allSections } = useSections(notebook?.id);
+
+  useEffect(() => {
+    if (!targetSectionId) return;
+    const sec = allSections.find((s) => s.id === targetSectionId);
+    if (sec && activeSection?.id !== sec.id) setActiveSection(sec);
+  }, [targetSectionId, allSections, activeSection?.id]);
+
+  useEffect(() => {
+    if (!targetSectionId || activeSection?.id !== targetSectionId) return;
+    const clearParams = () =>
+      setSearchParams((prev) => { prev.delete("section"); prev.delete("page"); return prev; }, { replace: true });
+    if (!targetPageId) { clearParams(); return; }
+    const page = pages.find((p) => p.id === targetPageId);
+    if (!page) return; // pages of the section are still loading
+    setActivePage(page);
+    setMobileEditorOpen(true);
+    clearParams();
+  }, [targetSectionId, targetPageId, activeSection?.id, pages, setSearchParams]);
 
   if (!notebook)
     return (
